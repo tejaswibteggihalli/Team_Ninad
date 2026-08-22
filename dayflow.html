@@ -156,6 +156,11 @@
   .nav-item:hover{background:#2A2E3A;}
   .nav-item.active{background:var(--amber);color:var(--ink);}
   .nav-item.active .ic{color:var(--ink);}
+  .top-nav{display:flex;gap:4px;background:var(--paper-dim);padding:4px;border-radius:10px;margin-bottom:28px;width:fit-content;}
+  .top-tab{flex:none;padding:9px 16px;border-radius:7px;border:none;background:transparent;font-size:13.5px;font-weight:500;color:var(--ink-soft);cursor:pointer;font-family:var(--font-body);}
+  .top-tab.active{background:var(--ink);color:var(--paper);}
+  .top-tab:hover{color:var(--ink);}
+  .top-tab.active:hover{color:var(--paper);}
   .sidebar-bottom{margin-top:auto;padding-top:16px;border-top:1px solid #33374A;}
   .user-chip{display:flex;align-items:center;gap:9px;padding:8px;}
   .avatar{width:30px;height:30px;border-radius:50%;background:var(--amber);color:var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:13px;flex-shrink:0;}
@@ -287,6 +292,7 @@
   .chip-btn{padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:12.5px;}
   .chip-btn.sel{background:var(--ink);color:var(--paper);border-color:var(--ink);}
 </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -342,7 +348,7 @@
       <img class="company-logo" id="sb-company-logo" alt="Company logo" style="display:none;">
       <div class="wordmark">Dayflow<span style="color:var(--amber);">.</span></div>
       <div class="tagline">Every workday, aligned.</div>
-      <div id="nav-items"></div>
+      <!-- nav-items moved to top-nav -->
       <div class="sidebar-bottom">
         <div class="user-chip">
           <div class="profile-menu-wrap"><button class="avatar-button" onclick="toggleProfileMenu(event)" aria-label="Open profile menu"><div class="avatar" id="sb-avatar">A</div></button><div class="profile-menu" id="profile-menu"><button onclick="goTo('profile');closeProfileMenu();">My Profile</button><button onclick="logout()">Log out</button></div></div>
@@ -351,7 +357,10 @@
         <button class="logout-btn" onclick="logout()">Log out</button>
       </div>
     </div>
-    <div class="main" id="main-content"></div>
+    <div class="main">
+      <div class="top-nav" id="top-nav"></div>
+      <div id="main-content"></div>
+    </div>
   </div>
 </div>
 
@@ -482,9 +491,10 @@ function renderSidebar(){
   document.getElementById('sb-name').textContent = u.name;
   document.getElementById('sb-role').textContent = u.role === 'admin' ? 'HR Admin' : 'Employee';
   const items = u.role==='admin' ? NAV_ADMIN : NAV_EMPLOYEE;
-  document.getElementById('nav-items').innerHTML = items.map(it=>`
-    <button class="nav-item ${ui.view===it.id?'active':''}" onclick="goTo('${it.id}')">
-      <span class="ic">${it.ic}</span>${it.label}
+  const topNav = document.getElementById('top-nav');
+  if(topNav) topNav.innerHTML = items.map(it=>`
+    <button class="top-tab ${ui.view===it.id?'active':''}" onclick="goTo('${it.id}')">
+      ${it.label}
     </button>`).join('');
 }
 function toggleProfileMenu(event){
