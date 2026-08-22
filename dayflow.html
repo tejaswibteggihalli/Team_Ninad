@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dayflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F7F5EF;
+    --paper-dim:#EDEAE0;
+    --ink:#1E2128;
+    --ink-soft:#5B5F6B;
+    --amber:#E8A33D;
+    --amber-soft:#FBEBD1;
+    --indigo:#4C5FD5;
+    --indigo-soft:#E6E9FA;
+    --sage:#6B8F71;
+    --sage-soft:#E3EBE1;
+    --brick:#C1443C;
+    --brick-soft:#F6E1DF;
+    --line:rgba(30,33,40,0.12);
+    --font-display:'Space Grotesk',sans-serif;
+    --font-body:'Inter',sans-serif;
+    --font-mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  h1,h2,h3,.disp{font-family:var(--font-display);letter-spacing:-0.01em;}
+  .mono{font-family:var(--font-mono);}
+  a{color:inherit;}
+  button{font-family:var(--font-body);cursor:pointer;}
+  ::selection{background:var(--amber-soft);}
+
+  /* ---------- AUTH SCREEN ---------- */
+  #auth-screen{display:flex;min-height:100vh;}
+  .auth-left{
+    flex:1.1;
+    background:var(--ink);
+    color:var(--paper);
+    padding:56px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    position:relative;
+    overflow:hidden;
+  }
+  .auth-left::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:radial-gradient(circle at 15% 110%, rgba(232,163,61,0.25), transparent 55%);
+  }
+  .wordmark{font-family:var(--font-display);font-weight:700;font-size:26px;position:relative;z-index:1;}
+  .wordmark .dot{color:var(--amber);}
+  .auth-hero{position:relative;z-index:1;}
+  .auth-hero h1{font-size:44px;font-weight:600;line-height:1.12;margin:0 0 14px;max-width:460px;}
+  .auth-hero p{font-size:15px;color:#B9BCC6;max-width:380px;line-height:1.55;}
+  .rail-wrap{position:relative;z-index:1;margin-top:40px;}
+  .rail-label{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11px;color:#8C8F9C;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;}
+  .time-rail{height:10px;border-radius:6px;position:relative;background:linear-gradient(90deg,#333A55 0%, var(--indigo) 16%, var(--amber) 50%, var(--indigo) 84%, #333A55 100%);}
+  .time-rail .marker{
+    position:absolute;top:50%;width:16px;height:16px;border-radius:50%;
+    background:var(--paper);border:3px solid var(--ink);
+    transform:translate(-50%,-50%);
+    box-shadow:0 0 0 3px var(--amber);
+  }
+  .auth-right{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:40px;
+  }
+  .auth-card{width:100%;max-width:380px;}
+  .auth-card h2{font-size:24px;margin:0 0 6px;}
+  .auth-card .sub{color:var(--ink-soft);font-size:13.5px;margin-bottom:28px;}
+  .tabs{display:flex;gap:4px;background:var(--paper-dim);padding:4px;border-radius:10px;margin-bottom:24px;}
+  .tab{flex:1;text-align:center;padding:9px 0;border-radius:7px;border:none;background:transparent;font-size:13.5px;font-weight:500;color:var(--ink-soft);}
+  .tab.active{background:var(--ink);color:var(--paper);}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;font-weight:500;color:var(--ink-soft);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
+  .field input,.field select,.field textarea{
+    width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;
+    background:#fff;font-family:var(--font-body);font-size:14px;color:var(--ink);
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--indigo);outline-offset:1px;border-color:var(--indigo);}
+  .role-pick{display:flex;gap:8px;}
+  .role-pick button{flex:1;padding:9px 0;border-radius:8px;border:1.5px solid var(--line);background:#fff;font-size:13px;font-weight:500;color:var(--ink-soft);}
+  .role-pick button.sel{border-color:var(--indigo);background:var(--indigo-soft);color:var(--indigo);}
+  .btn-primary{
+    width:100%;padding:11px 0;border:none;border-radius:8px;background:var(--ink);color:var(--paper);
+    font-size:14px;font-weight:600;margin-top:6px;
+  }
+  .btn-primary:hover{background:#000;}
+  .err{color:var(--brick);font-size:12.5px;margin-top:10px;min-height:14px;}
+  .demo-note{margin-top:20px;font-size:12px;color:var(--ink-soft);background:var(--paper-dim);border-radius:8px;padding:10px 12px;line-height:1.5;}
+  .demo-note b{color:var(--ink);}
+
+  /* ---------- APP SHELL ---------- */
+  #app-screen{display:none;min-height:100vh;}
+  .shell{display:flex;min-height:100vh;}
+  .sidebar{
+    width:220px;background:var(--ink);color:var(--paper);
+    display:flex;flex-direction:column;padding:26px 16px;flex-shrink:0;
+  }
+  .sidebar .wordmark{font-size:20px;margin-bottom:2px;padding:0 8px;}
+  .sidebar .tagline{font-size:10.5px;color:#8C8F9C;padding:0 8px;margin-bottom:30px;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:8px;
+    font-size:13.5px;font-weight:500;color:#C7C9D2;margin-bottom:2px;border:none;background:transparent;
+    width:100%;text-align:left;
+  }
+  .nav-item .ic{width:16px;text-align:center;font-family:var(--font-mono);color:#71748A;}
+  .nav-item:hover{background:#2A2E3A;}
+  .nav-item.active{background:var(--amber);color:var(--ink);}
+  .nav-item.active .ic{color:var(--ink);}
+  .sidebar-bottom{margin-top:auto;padding-top:16px;border-top:1px solid #33374A;}
+  .user-chip{display:flex;align-items:center;gap:9px;padding:8px;}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--amber);color:var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:13px;flex-shrink:0;}
+  .user-chip .name{font-size:12.5px;font-weight:600;}
+  .user-chip .role{font-size:10.5px;color:#8C8F9C;text-transform:capitalize;}
+  .logout-btn{width:100%;margin-top:10px;padding:8px;border-radius:7px;border:1px solid #3A3E52;background:transparent;color:#C7C9D2;font-size:12px;}
+  .logout-btn:hover{background:#2A2E3A;}
+
+  .main{flex:1;padding:36px 44px;max-width:1040px;}
+  .page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;}
+  .page-head h1{font-size:26px;margin:0;}
+  .page-head .eyebrow{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;}
+  .page-head .today{font-family:var(--font-mono);font-size:12.5px;color:var(--ink-soft);}
+
+  .rail-card{background:var(--ink);color:var(--paper);border-radius:14px;padding:22px 24px;margin-bottom:26px;}
+  .rail-card .rail-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .rail-card .rail-top .lab{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#9DA0B0;}
+  .rail-card .rail-top .val{font-family:var(--font-mono);font-size:13px;color:var(--amber);}
+
+  .grid{display:grid;gap:16px;}
+  .grid-4{grid-template-columns:repeat(4,1fr);}
+  .grid-3{grid-template-columns:repeat(3,1fr);}
+  .grid-2{grid-template-columns:repeat(2,1fr);}
+  @media(max-width:900px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr 1fr;}}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .stat-card .num{font-family:var(--font-display);font-size:30px;font-weight:700;}
+  .stat-card .lab{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .quick-card{cursor:pointer;transition:border-color .15s;}
+  .quick-card:hover{border-color:var(--indigo);}
+  .quick-card .ic{font-family:var(--font-mono);color:var(--indigo);font-size:13px;margin-bottom:8px;}
+  .quick-card .t{font-weight:600;font-size:14.5px;}
+
+  .section{margin-bottom:30px;}
+  .section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .section-head h2{font-size:15px;margin:0;}
+
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid var(--line);}
+  th,td{text-align:left;padding:11px 14px;font-size:13px;border-bottom:1px solid var(--line);}
+  th{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);background:var(--paper-dim);font-weight:500;}
+  tr:last-child td{border-bottom:none;}
+  td.mono{font-family:var(--font-mono);font-size:12.5px;}
+
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;text-transform:capitalize;}
+  .badge.present,.badge.approved{background:var(--sage-soft);color:var(--sage);}
+  .badge.absent,.badge.rejected{background:var(--brick-soft);color:var(--brick);}
+  .badge.pending{background:var(--amber-soft);color:#9C6A1B;}
+  .badge.leave,.badge.half-day{background:var(--indigo-soft);color:var(--indigo);}
+
+  .btn{padding:7px 13px;border-radius:7px;border:1px solid var(--line);background:#fff;font-size:12.5px;font-weight:500;}
+  .btn:hover{border-color:var(--ink);}
+  .btn-dark{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  .btn-dark:hover{background:#000;}
+  .btn-approve{background:var(--sage);color:#fff;border-color:var(--sage);}
+  .btn-reject{background:var(--brick);color:#fff;border-color:var(--brick);}
+  .btn-sm{padding:5px 10px;font-size:11.5px;}
+
+  .empty{padding:26px;text-align:center;color:var(--ink-soft);font-size:13px;background:var(--paper-dim);border-radius:12px;}
+
+  .form-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px;max-width:460px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+  .comment-input{width:130px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:11.5px;font-family:var(--font-body);}
+  .toast{position:fixed;bottom:22px;right:22px;background:var(--ink);color:var(--paper);padding:12px 18px;border-radius:9px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,0.2);opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;z-index:50;}
+  .toast.show{opacity:1;transform:translateY(0);}
+  .footer-note{margin-top:30px;font-size:11.5px;color:var(--ink-soft);}
+  .footer-note button{background:none;border:none;color:var(--indigo);text-decoration:underline;padding:0;font-size:11.5px;}
+  .profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .profile-grid .f{border-bottom:1px solid var(--line);padding-bottom:10px;}
+  .profile-grid .f .l{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;color:var(--ink-soft);letter-spacing:.05em;margin-bottom:3px;}
+  .profile-grid .f .v{font-size:14px;font-weight:500;}
+  .switch-emp{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+  .chip-btn{padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:12.5px;}
+  .chip-btn.sel{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+</style>
+</head>
+<body>
+
+<!-- ============ AUTH SCREEN ============ -->
+<div id="auth-screen">
+  <div class="auth-left">
+    <div class="wordmark">Dayflow<span class="dot">.</span></div>
+    <div class="auth-hero">
+      <h1>Every workday,<br>perfectly aligned.</h1>
+      <p>Onboarding, attendance, leave and approvals — one place for HR and employees to stay in sync.</p>
+      <div class="rail-wrap">
+        <div class="rail-label"><span>9:00</span><span>Today's rail</span><span>18:00</span></div>
+        <div class="time-rail"><div class="marker" id="auth-rail-marker"></div></div>
+      </div>
+    </div>
+    <div style="position:relative;z-index:1;font-family:var(--font-mono);font-size:11px;color:#71748A;">Built for the Dayflow HRMS hackathon</div>
+  </div>
+  <div class="auth-right">
+    <div class="auth-card">
+      <div class="tabs">
+        <button class="tab active" id="tab-signin" onclick="setAuthTab('signin')">Sign in</button>
+        <button class="tab" id="tab-signup" onclick="setAuthTab('signup')">Sign up</button>
+      </div>
+
+      <div id="signin-form">
+        <h2>Welcome back</h2>
+        <div class="sub">Sign in to reach your dashboard.</div>
+        <div class="field"><label>Email</label><input id="si-email" type="email" placeholder="you@company.com"></div>
+        <div class="field"><label>Password</label><input id="si-password" type="password" placeholder="••••••••"></div>
+        <button class="btn-primary" onclick="doSignIn()">Sign in</button>
+        <div class="err" id="si-err"></div>
+        <div class="demo-note"><b>Demo accounts</b> — Admin: admin@dayflow.io / admin123 &nbsp;·&nbsp; Employee: asha@dayflow.io / employee123</div>
+      </div>
+
+      <div id="signup-form" style="display:none;">
+        <h2>Create account</h2>
+        <div class="sub">Register as an employee or HR admin.</div>
+        <div class="row2">
+          <div class="field"><label>Full name</label><input id="su-name" placeholder="Jordan Lee"></div>
+          <div class="field"><label>Employee ID</label><input id="su-empid" placeholder="EMP-104"></div>
+        </div>
+        <div class="field"><label>Email</label><input id="su-email" type="email" placeholder="you@company.com"></div>
+        <div class="field"><label>Password</label><input id="su-password" type="password" placeholder="Min. 6 characters"></div>
+        <div class="field">
+          <label>Role</label>
+          <div class="role-pick">
+            <button type="button" class="sel" id="role-employee" onclick="pickRole('employee')">Employee</button>
+            <button type="button" id="role-admin" onclick="pickRole('admin')">HR / Admin</button>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="doSignUp()">Create account</button>
+        <div class="err" id="su-err"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP SCREEN ============ -->
+<div id="app-screen">
+  <div class="shell">
+    <div class="sidebar">
+      <div class="wordmark">Dayflow<span style="color:var(--amber);">.</span></div>
+      <div class="tagline">Every workday, aligned.</div>
+      <div id="nav-items"></div>
+      <div class="sidebar-bottom">
+        <div class="user-chip">
+          <div class="avatar" id="sb-avatar">A</div>
+          <div><div class="name" id="sb-name">—</div><div class="role" id="sb-role">—</div></div>
+        </div>
+        <button class="logout-btn" onclick="logout()">Log out</button>
+      </div>
+    </div>
+    <div class="main" id="main-content"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   DAYFLOW — hackathon demo prototype
+   Mock auth (plaintext, no hashing) + shared in-browser storage.
+   Not production security — built to demo the full user flow.
+   ============================================================ */
+
+const WORK_START = 9, WORK_END = 18;
+let db = null;
+let session = { user: null };
+let ui = { view: 'dashboard', authTab: 'signin', pickedRole: 'employee', adminEmpFilter: null, editingProfile: false };
+
+function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(d){ return new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+function fmtTime(t){ return t || '—'; }
+function initials(name){ return (name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+
+function seedDB(){
+  return {
+    users:[
+      {id:'u_admin', employeeId:'EMP-001', name:'Priya Nair', email:'admin@dayflow.io', password:'admin123', role:'admin', phone:'+91 98765 43210', address:'HR Wing, HQ Campus', department:'Human Resources', salary:'₹14,20,000 / yr', joinDate:'2021-03-01'},
+      {id:'u_emp1', employeeId:'EMP-002', name:'Asha Rao', email:'asha@dayflow.io', password:'employee123', role:'employee', phone:'+91 90000 11122', address:'204 Lakeview Rd, Pune', department:'Engineering', salary:'₹9,60,000 / yr', joinDate:'2023-07-14'},
+      {id:'u_emp2', employeeId:'EMP-003', name:'Ravi Menon', email:'ravi@dayflow.io', password:'employee123', role:'employee', phone:'+91 90000 33344', address:'12 MG Road, Bengaluru', department:'Design', salary:'₹8,40,000 / yr', joinDate:'2022-11-02'}
+    ],
+    attendance:[
+      {id:uid('att'), userId:'u_emp1', date: todayStr(), checkIn:'09:12', checkOut:null, status:'present'},
+    ],
+    leave:[
+      {id:uid('lv'), userId:'u_emp1', type:'Sick', startDate: todayStr(), endDate: todayStr(), remarks:'Fever, resting at home.', status:'pending', comment:'', createdAt:Date.now()},
+      {id:uid('lv'), userId:'u_emp2', type:'Paid', startDate: todayStr(), endDate: todayStr(), remarks:'Family function.', status:'approved', comment:'Enjoy!', createdAt:Date.now()-90000}
+    ]
+  };
+}
+
+async function loadDB(){
+  try{
+    const res = await window.storage.get('dayflow_db', true);
+    db = JSON.parse(res.value);
+  }catch(e){
+    db = seedDB();
+    await saveDB();
+  }
+}
+async function saveDB(){
+  await window.storage.set('dayflow_db', JSON.stringify(db), true);
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ---------- AUTH ---------- */
+function setAuthTab(tab){
+  ui.authTab = tab;
+  document.getElementById('tab-signin').classList.toggle('active', tab==='signin');
+  document.getElementById('tab-signup').classList.toggle('active', tab==='signup');
+  document.getElementById('signin-form').style.display = tab==='signin' ? 'block':'none';
+  document.getElementById('signup-form').style.display = tab==='signup' ? 'block':'none';
+}
+function pickRole(r){
+  ui.pickedRole = r;
+  document.getElementById('role-employee').classList.toggle('sel', r==='employee');
+  document.getElementById('role-admin').classList.toggle('sel', r==='admin');
+}
+async function doSignIn(){
+  const email = document.getElementById('si-email').value.trim().toLowerCase();
+  const pass = document.getElementById('si-password').value;
+  const err = document.getElementById('si-err');
+  const u = db.users.find(x=>x.email.toLowerCase()===email && x.password===pass);
+  if(!u){ err.textContent = 'Incorrect email or password.'; return; }
+  err.textContent='';
+  session.user = u;
+  enterApp();
+}
+async function doSignUp(){
+  const name = document.getElementById('su-name').value.trim();
+  const empId = document.getElementById('su-empid').value.trim();
+  const email = document.getElementById('su-email').value.trim().toLowerCase();
+  const pass = document.getElementById('su-password').value;
+  const err = document.getElementById('su-err');
+  if(!name || !empId || !email || !pass){ err.textContent='Please fill in every field.'; return; }
+  if(pass.length < 6){ err.textContent='Password must be at least 6 characters.'; return; }
+  if(db.users.some(u=>u.email.toLowerCase()===email)){ err.textContent='An account with this email already exists.'; return; }
+  const u = {id:uid('u'), employeeId:empId, name, email, password:pass, role:ui.pickedRole, phone:'', address:'', department: ui.pickedRole==='admin'?'Human Resources':'Unassigned', salary: ui.pickedRole==='admin'?'—':'—', joinDate: todayStr()};
+  db.users.push(u);
+  await saveDB();
+  err.textContent='';
+  session.user = u;
+  enterApp();
+}
+function logout(){
+  session.user = null;
+  document.getElementById('app-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('si-email').value='';
+  document.getElementById('si-password').value='';
+}
+function enterApp(){
+  ui.view = 'dashboard';
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('app-screen').style.display='block';
+  renderSidebar();
+  renderMain();
+}
+
+/* ---------- NAV ---------- */
+const NAV_EMPLOYEE = [
+  {id:'dashboard', label:'Dashboard', ic:'01'},
+  {id:'attendance', label:'Attendance', ic:'02'},
+  {id:'leave', label:'Leave requests', ic:'03'},
+  {id:'profile', label:'Profile', ic:'04'},
+];
+const NAV_ADMIN = [
+  {id:'dashboard', label:'Dashboard', ic:'01'},
+  {id:'employees', label:'Employees', ic:'02'},
+  {id:'attendance', label:'Attendance', ic:'03'},
+  {id:'leave', label:'Leave approvals', ic:'04'},
+];
+function renderSidebar(){
+  const u = session.user;
+  document.getElementById('sb-avatar').textContent = initials(u.name);
+  document.getElementById('sb-name').textContent = u.name;
+  document.getElementById('sb-role').textContent = u.role === 'admin' ? 'HR Admin' : 'Employee';
+  const items = u.role==='admin' ? NAV_ADMIN : NAV_EMPLOYEE;
+  document.getElementById('nav-items').innerHTML = items.map(it=>`
+    <button class="nav-item ${ui.view===it.id?'active':''}" onclick="goTo('${it.id}')">
+      <span class="ic">${it.ic}</span>${it.label}
+    </button>`).join('');
+}
+function goTo(view){
+  ui.view = view;
+  ui.editingProfile = false;
+  renderSidebar();
+  renderMain();
+}
+
+/* ---------- TIME RAIL ---------- */
+function railMarkerPercent(){
+  const now = new Date();
+  const h = now.getHours() + now.getMinutes()/60;
+  let pct = (h - (WORK_START-2)) / ((WORK_END+2) - (WORK_START-2));
+  pct = Math.max(0.02, Math.min(0.98, pct));
+  return pct*100;
+}
+function positionAuthMarker(){
+  document.getElementById('auth-rail-marker').style.left = railMarkerPercent()+'%';
+}
+function railCardHTML(subtitle){
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  return `
+  <div class="rail-card">
+    <div class="rail-top">
+      <span class="lab">${subtitle}</span>
+      <span class="val mono">${timeStr}</span>
+    </div>
+    <div class="rail-label" style="color:#9DA0B0;"><span>${WORK_START}:00</span><span>now</span><span>${WORK_END}:00</span></div>
+    <div class="time-rail"><div class="marker" style="left:${railMarkerPercent()}%;"></div></div>
+  </div>`;
+}
+
+/* ---------- HELPERS ---------- */
+function userAttendance(userId){ return db.attendance.filter(a=>a.userId===userId).sort((a,b)=>b.date.localeCompare(a.date)); }
+function userLeave(userId){ return db.leave.filter(l=>l.userId===userId).sort((a,b)=>b.createdAt-a.createdAt); }
+function todayAttendanceFor(userId){ return db.attendance.find(a=>a.userId===userId && a.date===todayStr()); }
+function last7Days(){
+  const days=[];
+  for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); }
+  return days;
+}
+
+/* ---------- MAIN RENDER DISPATCH ---------- */
+function renderMain(){
+  const u = session.user;
+  const el = document.getElementById('main-content');
+  if(u.role==='employee'){
+    if(ui.view==='dashboard') el.innerHTML = empDashboard();
+    else if(ui.view==='attendance') el.innerHTML = empAttendance();
+    else if(ui.view==='leave') el.innerHTML = empLeave();
+    else if(ui.view==='profile') el.innerHTML = empProfile();
+  } else {
+    if(ui.view==='dashboard') el.innerHTML = adminDashboard();
+    else if(ui.view==='employees') el.innerHTML = adminEmployees();
+    else if(ui.view==='attendance') el.innerHTML = adminAttendance();
+    else if(ui.view==='leave') el.innerHTML = adminLeave();
+  }
+}
+
+/* ---------- EMPLOYEE: DASHBOARD ---------- */
+function empDashboard(){
+  const u = session.user;
+  const today = todayAttendanceFor(u.id);
+  const pendingLeave = userLeave(u.id).filter(l=>l.status==='pending').length;
+  const recentLeave = userLeave(u.id)[0];
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Dashboard</div><h1>Hi, ${u.name.split(' ')[0]}</h1></div>
+      <div class="today mono">${new Date().toDateString()}</div>
+    </div>
+    ${railCardHTML(today ? (today.checkOut? "You've checked out for today" : "You're checked in — have a good one") : "You haven't checked in yet")}
+    <div class="section">
+      <div class="grid grid-4">
+        <div class="card quick-card" onclick="goTo('profile')"><div class="ic">01</div><div class="t">Profile</div></div>
+        <div class="card quick-card" onclick="goTo('attendance')"><div class="ic">02</div><div class="t">Attendance</div></div>
+        <div class="card quick-card" onclick="goTo('leave')"><div class="ic">03</div><div class="t">Leave requests</div></div>
+        <div class="card quick-card" onclick="logout()"><div class="ic">04</div><div class="t">Log out</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Recent activity</h2></div>
+      ${recentLeave ? `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-weight:600;font-size:13.5px;">${recentLeave.type} leave · ${fmtDate(recentLeave.startDate)}${recentLeave.startDate!==recentLeave.endDate ? ' – '+fmtDate(recentLeave.endDate):''}</div>
+              <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">${recentLeave.remarks || 'No remarks'}</div>
+            </div>
+            <span class="badge ${recentLeave.status}">${recentLeave.status}</span>
+          </div>
+        </div>` : `<div class="empty">No activity yet — apply for leave or check in to get started.</div>`}
+      ${pendingLeave>0 ? `<div style="font-size:12.5px;color:var(--ink-soft);margin-top:8px;">You have ${pendingLeave} leave request${pendingLeave>1?'s':''} awaiting approval.</div>`:''}
+    </div>
+  `;
+}
+
+/* ---------- EMPLOYEE: ATTENDANCE ---------- */
+async function checkIn(){
+  const u = session.user;
+  let rec = todayAttendanceFor(u.id);
+  const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  if(!rec){
+    rec = {id:uid('att'), userId:u.id, date:todayStr(), checkIn:time, checkOut:null, status:'present'};
+    db.attendance.push(rec);
+  } else if(!rec.checkIn){
+    rec.checkIn = time; rec.status='present';
+  }
+  await saveDB();
+  showToast('Checked in at '+time);
+  renderMain();
+}
+async function checkOut(){
+  const u = session.user;
+  const rec = todayAttendanceFor(u.id);
+  if(rec && !rec.checkOut){
+    rec.checkOut = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+    await saveDB();
+    showToast('Checked out at '+rec.checkOut);
+    renderMain();
+  }
+}
+function empAttendance(){
+  const u = session.user;
+  const today = todayAttendanceFor(u.id);
+  const days = last7Days();
+  const rows = days.map(d=>{
+    const rec = db.attendance.find(a=>a.userId===u.id && a.date===d);
+    const status = rec ? rec.status : 'absent';
+    return `<tr><td>${fmtDate(d)}${d===todayStr()?' <span style="color:var(--ink-soft);font-size:11px;">(today)</span>':''}</td><td class="mono">${rec?fmtTime(rec.checkIn):'—'}</td><td class="mono">${rec?fmtTime(rec.checkOut):'—'}</td><td><span class="badge ${status}">${status}</span></td></tr>`;
+  }).join('');
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Attendance</div><h1>Your attendance</h1></div>
+      <div class="today mono">${new Date().toDateString()}</div>
+    </div>
+    ${railCardHTML("Today's rail")}
+    <div class="section">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:600;font-size:14px;">${today ? (today.checkOut ? 'Day complete' : 'Checked in at '+today.checkIn) : 'Not checked in yet'}</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">${today && today.checkOut ? 'Checked out at '+today.checkOut : 'Tap in when you start your workday.'}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn ${today && today.checkIn ? '' : 'btn-dark'}" ${today && today.checkIn ? 'disabled style="opacity:.4;"' : ''} onclick="checkIn()">Check in</button>
+          <button class="btn ${today && today.checkIn && !today.checkOut ? 'btn-dark' : ''}" ${!today || !today.checkIn || today.checkOut ? 'disabled style="opacity:.4;"' : ''} onclick="checkOut()">Check out</button>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Last 7 days</h2></div>
+      <table><thead><tr><th>Date</th><th>Check in</th><th>Check out</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>
+  `;
+}
+
+/* ---------- EMPLOYEE: LEAVE ---------- */
+async function submitLeave(){
+  const u = session.user;
+  const type = document.getElementById('lv-type').value;
+  const start = document.getElementById('lv-start').value;
+  const end = document.getElementById('lv-end').value;
+  const remarks = document.getElementById('lv-remarks').value.trim();
+  const err = document.getElementById('lv-err');
+  if(!start || !end){ err.textContent = 'Pick a start and end date.'; return; }
+  if(end < start){ err.textContent = 'End date must be after the start date.'; return; }
+  err.textContent = '';
+  db.leave.push({id:uid('lv'), userId:u.id, type, startDate:start, endDate:end, remarks, status:'pending', comment:'', createdAt:Date.now()});
+  await saveDB();
+  showToast('Leave request submitted');
+  renderMain();
+}
+function empLeave(){
+  const u = session.user;
+  const requests = userLeave(u.id);
+  const rows = requests.map(l=>`
+    <tr>
+      <td>${l.type}</td>
+      <td class="mono">${fmtDate(l.startDate)}${l.startDate!==l.endDate?' – '+fmtDate(l.endDate):''}</td>
+      <td style="max-width:220px;">${l.remarks || '—'}</td>
+      <td><span class="badge ${l.status}">${l.status}</span></td>
+      <td style="font-size:12px;color:var(--ink-soft);">${l.comment || '—'}</td>
+    </tr>`).join('');
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Leave &amp; time-off</div><h1>Leave requests</h1></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>New request</h2></div>
+      <div class="form-card">
+        <div class="field"><label>Leave type</label>
+          <select id="lv-type"><option>Paid</option><option>Sick</option><option>Unpaid</option></select>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Start date</label><input id="lv-start" type="date" value="${todayStr()}"></div>
+          <div class="field"><label>End date</label><input id="lv-end" type="date" value="${todayStr()}"></div>
+        </div>
+        <div class="field"><label>Remarks</label><textarea id="lv-remarks" rows="3" placeholder="Add context for HR (optional)"></textarea></div>
+        <button class="btn-primary" onclick="submitLeave()">Submit request</button>
+        <div class="err" id="lv-err"></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Your requests</h2></div>
+      ${requests.length ? `<table><thead><tr><th>Type</th><th>Dates</th><th>Remarks</th><th>Status</th><th>HR comment</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No leave requests yet.</div>`}
+    </div>
+  `;
+}
+
+/* ---------- EMPLOYEE: PROFILE ---------- */
+async function saveProfile(){
+  const u = session.user;
+  u.phone = document.getElementById('pf-phone').value.trim();
+  u.address = document.getElementById('pf-address').value.trim();
+  await saveDB();
+  ui.editingProfile = false;
+  showToast('Profile updated');
+  renderMain();
+}
+function empProfile(){
+  const u = session.user;
+  if(ui.editingProfile){
+    return `
+    <div class="page-head"><div><div class="eyebrow">Profile</div><h1>Edit profile</h1></div></div>
+    <div class="form-card">
+      <div class="field"><label>Phone</label><input id="pf-phone" value="${u.phone||''}"></div>
+      <div class="field"><label>Address</label><input id="pf-address" value="${u.address||''}"></div>
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:14px;">Job details and salary are managed by HR and can't be edited here.</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-primary" style="width:auto;padding:9px 18px;" onclick="saveProfile()">Save changes</button>
+        <button class="btn" onclick="ui.editingProfile=false;renderMain();">Cancel</button>
+      </div>
+    </div>`;
+  }
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Profile</div><h1>Your profile</h1></div>
+      <button class="btn btn-dark" onclick="ui.editingProfile=true;renderMain();">Edit</button>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Personal details</h2></div>
+      <div class="card profile-grid">
+        <div class="f"><div class="l">Full name</div><div class="v">${u.name}</div></div>
+        <div class="f"><div class="l">Employee ID</div><div class="v mono">${u.employeeId}</div></div>
+        <div class="f"><div class="l">Email</div><div class="v">${u.email}</div></div>
+        <div class="f"><div class="l">Phone</div><div class="v">${u.phone || '—'}</div></div>
+        <div class="f" style="grid-column:1/3;"><div class="l">Address</div><div class="v">${u.address || '—'}</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Job details</h2></div>
+      <div class="card profile-grid">
+        <div class="f"><div class="l">Department</div><div class="v">${u.department}</div></div>
+        <div class="f"><div class="l">Joined</div><div class="v mono">${u.joinDate}</div></div>
+        <div class="f" style="grid-column:1/3;"><div class="l">Salary structure (read-only)</div><div class="v">${u.salary}</div></div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- ADMIN: DASHBOARD ---------- */
+function adminDashboard(){
+  const employees = db.users.filter(u=>u.role==='employee');
+  const presentToday = employees.filter(e=>{ const a=todayAttendanceFor(e.id); return a && a.checkIn; }).length;
+  const pending = db.leave.filter(l=>l.status==='pending');
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Dashboard</div><h1>HR overview</h1></div>
+      <div class="today mono">${new Date().toDateString()}</div>
+    </div>
+    <div class="section grid grid-3">
+      <div class="card stat-card"><div class="num">${employees.length}</div><div class="lab">Total employees</div></div>
+      <div class="card stat-card"><div class="num">${presentToday}</div><div class="lab">Checked in today</div></div>
+      <div class="card stat-card"><div class="num">${pending.length}</div><div class="lab">Leave requests pending</div></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Pending approvals</h2><button class="btn btn-sm" onclick="goTo('leave')">View all</button></div>
+      ${pending.length ? pending.slice(0,4).map(l=>{
+        const emp = db.users.find(u=>u.id===l.userId);
+        return `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <div><b style="font-size:13.5px;">${emp?emp.name:'—'}</b> <span style="color:var(--ink-soft);font-size:12.5px;">· ${l.type} · ${fmtDate(l.startDate)}</span></div>
+          <span class="badge pending">pending</span>
+        </div>`;
+      }).join('') : `<div class="empty">No pending requests — all caught up.</div>`}
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Employees</h2><button class="btn btn-sm" onclick="goTo('employees')">Manage</button></div>
+      <div class="grid grid-3">
+        ${employees.map(e=>`<div class="card"><div style="font-weight:600;font-size:13.5px;">${e.name}</div><div style="font-size:12px;color:var(--ink-soft);">${e.department} · ${e.employeeId}</div></div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- ADMIN: EMPLOYEES ---------- */
+async function saveEmployeeEdit(id){
+  const u = db.users.find(x=>x.id===id);
+  u.department = document.getElementById('em-dept').value.trim();
+  u.phone = document.getElementById('em-phone').value.trim();
+  u.address = document.getElementById('em-address').value.trim();
+  u.salary = document.getElementById('em-salary').value.trim();
+  await saveDB();
+  ui.adminEmpFilter = null;
+  showToast('Employee details updated');
+  renderMain();
+}
+function adminEmployees(){
+  const employees = db.users.filter(u=>u.role==='employee');
+  const editing = ui.adminEmpFilter ? db.users.find(u=>u.id===ui.adminEmpFilter) : null;
+  if(editing){
+    return `
+    <div class="page-head"><div><div class="eyebrow">Employees</div><h1>${editing.name}</h1></div>
+      <button class="btn" onclick="ui.adminEmpFilter=null;renderMain();">Back to list</button></div>
+    <div class="form-card">
+      <div class="field"><label>Department</label><input id="em-dept" value="${editing.department||''}"></div>
+      <div class="field"><label>Phone</label><input id="em-phone" value="${editing.phone||''}"></div>
+      <div class="field"><label>Address</label><input id="em-address" value="${editing.address||''}"></div>
+      <div class="field"><label>Salary structure</label><input id="em-salary" value="${editing.salary||''}"></div>
+      <button class="btn-primary" style="width:auto;padding:9px 18px;" onclick="saveEmployeeEdit('${editing.id}')">Save changes</button>
+    </div>`;
+  }
+  const rows = employees.map(e=>`
+    <tr>
+      <td><b>${e.name}</b></td>
+      <td class="mono">${e.employeeId}</td>
+      <td>${e.department}</td>
+      <td>${e.email}</td>
+      <td><button class="btn btn-sm" onclick="ui.adminEmpFilter='${e.id}';renderMain();">Edit</button></td>
+    </tr>`).join('');
+  return `
+    <div class="page-head"><div><div class="eyebrow">Employees</div><h1>All employees</h1></div></div>
+    ${employees.length ? `<table><thead><tr><th>Name</th><th>ID</th><th>Department</th><th>Email</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No employees registered yet.</div>`}
+  `;
+}
+
+/* ---------- ADMIN: ATTENDANCE ---------- */
+function adminAttendance(){
+  const employees = db.users.filter(u=>u.role==='employee');
+  const rows = employees.map(e=>{
+    const rec = todayAttendanceFor(e.id);
+    const status = rec ? rec.status : 'absent';
+    return `<tr><td><b>${e.name}</b></td><td class="mono">${rec?fmtTime(rec.checkIn):'—'}</td><td class="mono">${rec?fmtTime(rec.checkOut):'—'}</td><td><span class="badge ${status}">${status}</span></td></tr>`;
+  }).join('');
+  return `
+    <div class="page-head"><div><div class="eyebrow">Attendance</div><h1>Today across the team</h1></div><div class="today mono">${new Date().toDateString()}</div></div>
+    ${railCardHTML('Workday rail')}
+    <div class="section">
+      ${employees.length ? `<table><thead><tr><th>Employee</th><th>Check in</th><th>Check out</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No employees yet.</div>`}
+    </div>
+  `;
+}
+
+/* ---------- ADMIN: LEAVE APPROVALS ---------- */
+async function decideLeave(id, decision){
+  const l = db.leave.find(x=>x.id===id);
+  const commentEl = document.getElementById('cm-'+id);
+  l.status = decision;
+  l.comment = commentEl ? commentEl.value.trim() : '';
+  await saveDB();
+  showToast('Request '+decision);
+  renderMain();
+}
+function adminLeave(){
+  const requests = [...db.leave].sort((a,b)=>b.createdAt-a.createdAt);
+  const rows = requests.map(l=>{
+    const emp = db.users.find(u=>u.id===l.userId);
+    return `<tr>
+      <td><b>${emp?emp.name:'—'}</b></td>
+      <td>${l.type}</td>
+      <td class="mono">${fmtDate(l.startDate)}${l.startDate!==l.endDate?' – '+fmtDate(l.endDate):''}</td>
+      <td style="max-width:180px;">${l.remarks||'—'}</td>
+      <td><span class="badge ${l.status}">${l.status}</span></td>
+      <td>${l.status==='pending' ? `
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input class="comment-input" id="cm-${l.id}" placeholder="Comment (optional)">
+            <button class="btn btn-approve btn-sm" onclick="decideLeave('${l.id}','approved')">Approve</button>
+            <button class="btn btn-reject btn-sm" onclick="decideLeave('${l.id}','rejected')">Reject</button>
+          </div>` : `<span style="font-size:12px;color:var(--ink-soft);">${l.comment||'—'}</span>`}
+      </td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="page-head"><div><div class="eyebrow">Leave &amp; time-off</div><h1>Leave approvals</h1></div></div>
+    ${requests.length ? `<table><thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Remarks</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No leave requests yet.</div>`}
+  `;
+}
+
+/* ---------- BOOT ---------- */
+async function boot(){
+  await loadDB();
+  positionAuthMarker();
+  setInterval(positionAuthMarker, 60000);
+}
+boot();
+</script>
+</body>
+</html>
