@@ -829,6 +829,8 @@ function closeLeaveRequest(){ document.getElementById('leave-request-modal').cla
 function empLeave(){
   const u = session.user;
   const requests = userLeave(u.id);
+  const paidRemaining = employeeLeaveBalance(u.id,'Paid');
+  const sickRemaining = employeeLeaveBalance(u.id,'Sick');
   const rows = requests.map(l=>`
     <tr>
       <td>${l.type}</td>
@@ -842,6 +844,7 @@ function empLeave(){
     <div class="page-head">
       <div><div class="eyebrow">Leave &amp; time-off</div><h1>Leave requests</h1></div>
     </div>
+    <div class="leave-counts"><div class="leave-count paid"><div class="label">Paid time off</div><div class="value">${paidRemaining} <span style="font:500 12px var(--font-body);color:var(--ink-soft);">days available</span></div><div class="employee-label">Your remaining paid leave</div></div><div class="leave-count sick"><div class="label">Sick time off</div><div class="value">${sickRemaining} <span style="font:500 12px var(--font-body);color:var(--ink-soft);">days available</span></div><div class="employee-label">Your remaining sick leave</div></div></div>
     ${yearCalendarHTML(requests)}
     <div class="section">
       <div class="section-head"><h2>Your requests</h2></div>
