@@ -243,8 +243,6 @@
   .employee-status{position:absolute;top:14px;right:14px;font-size:11px;color:var(--ink-soft);text-transform:capitalize;}
   .employee-search{max-width:280px;}
   .status-select{margin-top:12px;width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:11.5px;color:var(--ink);}
-
-  /* Attendance & Profile Styling */
   .attendance-panel{display:flex;align-items:center;justify-content:space-between;gap:20px;background:var(--ink);color:var(--paper);border-radius:12px;padding:18px 20px;margin-top:22px;}
   .attendance-panel .attendance-label{font-family:var(--font-mono);font-size:10.5px;color:#9DA0B0;text-transform:uppercase;letter-spacing:.06em;}
   .attendance-panel .attendance-time{font-size:13px;font-weight:600;margin-top:5px;}
@@ -257,7 +255,6 @@
   .profile-hero{display:flex;align-items:center;gap:14px;margin-bottom:20px;}
   .profile-large-avatar{width:58px;height:58px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:18px;font-weight:700;overflow:hidden;}
   .profile-large-avatar img{width:100%;height:100%;object-fit:cover;}
-
   .profile-menu-wrap{position:relative;}
   .avatar-button{border:0;padding:0;background:transparent;}
   .profile-menu{display:none;position:absolute;left:0;bottom:40px;width:150px;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px;box-shadow:0 8px 20px rgba(0,0,0,.18);z-index:10;}
@@ -423,6 +420,7 @@
       <img class="company-logo" id="sb-company-logo" alt="Company logo" style="display:none;">
       <div class="wordmark">Dayflow<span style="color:var(--amber);">.</span></div>
       <div class="tagline">Every workday, aligned.</div>
+      <!-- nav-items moved to top-nav -->
     </div>
     <div class="main">
       <div class="app-topbar">
@@ -451,21 +449,7 @@
 const WORK_START = 9, WORK_END = 18;
 let db = null;
 let session = { user: null };
-let ui = { 
-  view: 'dashboard', 
-  authTab: 'signin', 
-  pickedRole: 'employee', 
-  adminEmpFilter: null, 
-  selectedEmployee: null, 
-  selectedLeaveEmployee: null, 
-  employeeSearch: '', 
-  leaveSearch: '', 
-  expandedLeave: null, 
-  editingProfile: false, 
-  creatingEmployee: false, 
-  createdCredentials: null, 
-  attDate: null 
-};
+let ui = { view: 'dashboard', authTab: 'signin', pickedRole: 'employee', adminEmpFilter: null, selectedEmployee: null, selectedLeaveEmployee: null, employeeSearch: '', leaveSearch: '', expandedLeave: null, editingProfile: false, creatingEmployee: false, createdCredentials: null };
 
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function fmtDate(d){ return new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
@@ -544,8 +528,632 @@ async function doSignUp(){
 async function logout(){
   await api('/api/auth/logout',{method:'POST'}).catch(()=>{});
   session.user = null;
-  location.reload();
+  document.getElementById('app-screen').style.display='none';
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('si-email').value='';
+  document.getElementById('si-password').value='';
 }
+function enterApp(){
+  ui.view = session.user.role === 'admin' ? 'employees' : 'dashboard';
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('app-screen').style.display='block';
+  renderSidebar();
+  renderMain();
+}
+
+/* ---------- NAV ---------- */
+const NAV_EMPLOYEE = [
+  {id:'dashboard', label:'Dashboard', ic:'01'},
+  {id:'attendance', label:'Attendance', ic:'02'},
+  {id:'leave', label:'Leave requests', ic:'03'},
+  {id:'profile', label:'Profile', ic:'04'},
+  {id:'employees', label:'Team directory', ic:'05'},
+];
+const NAV_ADMIN = [
+  {id:'dashboard', label:'Dashboard', ic:'01'},
+  {id:'employees', label:'Employees', ic:'02'},
+  {id:'attendance', label:'Attendance', ic:'03'},
+  {id:'leave', label:'Leave approvals', ic:'04'},
+];
+function renderSidebar(){
+  const u = session.user;
+  const logo = document.getElementById('sb-company-logo');
+  logo.src = u.companyLogo || '';
+  logo.style.display = u.companyLogo ? 'block' : 'none';
+  document.getElementById('sb-avatar').textContent = initials(u.name);
+  document.getElementById('sb-name').textContent = u.name;
+  document.getElementById('sb-role').textContent = u.role === 'admin' ? 'HR Admin' : 'Employee';
+  const items = u.role==='admin' ? NAV_ADMIN : NAV_EMPLOYEE;
+  const topNav = document.getElementById('top-nav');
+  if(topNav) topNav.innerHTML = items.map(it=>`
+    <button class="top-tab ${ui.view===it.id?'active':''}" onclick="goTo('${it.id}')">
+      ${it.label}
+    </button>`).join('');
+}
+function toggleProfileMenu(event){
+  event.stopPropagation();
+  document.getElementById('profile-menu').classList.toggle('open');
+}
+function closeProfileMenu(){ document.getElementById('profile-menu').classList.remove('open'); }
+function goTo(view){
+  ui.view = view;
+  ui.profileTab = 'resume';
+  ui.editingProfile = false;
+  closeProfileMenu();
+  renderSidebar();
+  renderMain();
+}
+
+/* ---------- TIME RAIL ---------- */
+function railMarkerPercent(){
+  const now = new Date();
+  const h = now.getHours() + now.getMinutes()/60;
+  let pct = (h - (WORK_START-2)) / ((WORK_END+2) - (WORK_START-2));
+  pct = Math.max(0.02, Math.min(0.98, pct));
+  return pct*100;
+}
+function positionAuthMarker(){
+  document.getElementById('auth-rail-marker').style.left = railMarkerPercent()+'%';
+}
+function railCardHTML(subtitle){
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  return `
+  <div class="rail-card">
+    <div class="rail-top">
+      <span class="lab">${subtitle}</span>
+      <span class="val mono">${timeStr}</span>
+    </div>
+    <div class="rail-label" style="color:#9DA0B0;"><span>${WORK_START}:00</span><span>now</span><span>${WORK_END}:00</span></div>
+    <div class="time-rail"><div class="marker" style="left:${railMarkerPercent()}%;"></div></div>
+  </div>`;
+}
+
+/* ---------- HELPERS ---------- */
+function userAttendance(userId){ return db.attendance.filter(a=>a.userId===userId).sort((a,b)=>b.date.localeCompare(a.date)); }
+function userLeave(userId){ return db.leave.filter(l=>l.userId===userId).sort((a,b)=>b.createdAt-a.createdAt); }
+function todayAttendanceFor(userId){ return db.attendance.find(a=>a.userId===userId && a.date===todayStr()); }
+function leaveDays(leave){ return Math.round((new Date(leave.endDate+'T00:00:00')-new Date(leave.startDate+'T00:00:00'))/86400000)+1; }
+function employeeLeaveBalance(userId, type){
+  const allowance = type==='Paid' ? 24 : 7;
+  const used = db.leave.filter(l=>l.userId===userId && l.type===type && l.status==='approved').reduce((sum,l)=>sum + leaveDays(l),0);
+  return Math.max(0, allowance-used);
+}
+function latestApprovedLeave(userId){
+  return db.leave.filter(l=>l.userId===userId && l.status==='approved').sort((a,b)=>b.createdAt-a.createdAt)[0] || null;
+}
+function selectLeaveEmployee(id){ ui.selectedLeaveEmployee = id; renderMain(); }
+function toggleLeaveRow(id){ ui.expandedLeave = ui.expandedLeave===id ? null : id; renderMain(); }
+function last7Days(){
+  const days=[];
+  for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); }
+  return days;
+}
+
+/* ---------- MAIN RENDER DISPATCH ---------- */
+function renderMain(){
+  const u = session.user;
+  const el = document.getElementById('main-content');
+  if(u.mustChangePassword){ el.innerHTML = passwordChangeView(); return; }
+  if(u.role==='employee'){
+    if(ui.view==='dashboard') el.innerHTML = empDashboard();
+    else if(ui.view==='attendance') el.innerHTML = empAttendance();
+    else if(ui.view==='leave') el.innerHTML = empLeave();
+    else if(ui.view==='profile') el.innerHTML = empProfile();
+    else if(ui.view==='employees') el.innerHTML = employeeDirectory();
+  } else {
+    if(ui.view==='dashboard') el.innerHTML = adminDashboard();
+    else if(ui.view==='employees') el.innerHTML = ui.creatingEmployee || ui.adminEmpFilter ? adminEmployees() : employeeDirectory();
+    else if(ui.view==='attendance') el.innerHTML = adminAttendance();
+    else if(ui.view==='leave') el.innerHTML = adminLeave();
+  }
+}
+function passwordChangeView(){
+  return `<div class="page-head"><div><div class="eyebrow">Account security</div><h1>Set your password</h1></div></div>
+    <div class="form-card"><div class="sub">Your HR admin created this account with a temporary password. Choose a new password to continue.</div>
+      <div class="field"><label>New password</label><input id="new-password" type="password" placeholder="At least 6 characters"></div>
+      <button class="btn-primary" onclick="changePassword()">Update password</button><div class="err" id="password-err"></div>
+    </div>`;
+}
+async function changePassword(){
+  const password = document.getElementById('new-password').value;
+  const err = document.getElementById('password-err');
+  try{
+    const result = await api('/api/auth/password',{method:'PATCH',body:JSON.stringify({password})});
+    session.user = result.user;
+    await refreshApp();
+    showToast('Password updated');
+  }catch(e){ err.textContent = e.message; }
+}
+
+/* ---------- EMPLOYEE: DASHBOARD ---------- */
+function empDashboard(){
+  const u = session.user;
+  const today = todayAttendanceFor(u.id);
+  const pendingLeave = userLeave(u.id).filter(l=>l.status==='pending').length;
+  const recentLeave = userLeave(u.id)[0];
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Dashboard</div><h1>Hi, ${u.name.split(' ')[0]}</h1></div>
+      <div class="today mono">${new Date().toDateString()}</div>
+    </div>
+    ${railCardHTML(today ? (today.checkOut? "You've checked out for today" : "You're checked in — have a good one") : "You haven't checked in yet")}
+    <div class="section">
+      <div class="grid grid-4">
+        <div class="card quick-card" onclick="goTo('profile')"><div class="ic">01</div><div class="t">Profile</div></div>
+        <div class="card quick-card" onclick="goTo('attendance')"><div class="ic">02</div><div class="t">Attendance</div></div>
+        <div class="card quick-card" onclick="goTo('leave')"><div class="ic">03</div><div class="t">Leave requests</div></div>
+        <div class="card quick-card" onclick="logout()"><div class="ic">04</div><div class="t">Log out</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Recent activity</h2></div>
+      ${recentLeave ? `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-weight:600;font-size:13.5px;">${recentLeave.type} leave · ${fmtDate(recentLeave.startDate)}${recentLeave.startDate!==recentLeave.endDate ? ' – '+fmtDate(recentLeave.endDate):''}</div>
+              <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">${recentLeave.remarks || 'No remarks'}</div>
+            </div>
+            <span class="badge ${recentLeave.status}">${recentLeave.status}</span>
+          </div>
+        </div>` : `<div class="empty">No activity yet — apply for leave or check in to get started.</div>`}
+      ${pendingLeave>0 ? `<div style="font-size:12.5px;color:var(--ink-soft);margin-top:8px;">You have ${pendingLeave} leave request${pendingLeave>1?'s':''} awaiting approval.</div>`:''}
+    </div>
+  `;
+}
+
+/* ---------- EMPLOYEE: ATTENDANCE ---------- */
+async function checkIn(){
+  try{
+    await api('/api/attendance/check-in',{method:'POST'});
+    await refreshApp();
+    showToast('Checked in');
+  }catch(e){ showToast(e.message); }
+}
+async function checkOut(){
+  try{
+    await api('/api/attendance/check-out',{method:'POST'});
+    await refreshApp();
+    showToast('Checked out');
+  }catch(e){ showToast(e.message); }
+}
+function empAttendance(){
+  const u = session.user;
+  const today = todayAttendanceFor(u.id);
+  const days = last7Days();
+  const rows = days.map(d=>{
+    const rec = db.attendance.find(a=>a.userId===u.id && a.date===d);
+    const status = rec ? rec.status : 'absent';
+    return `<tr><td>${fmtDate(d)}${d===todayStr()?' <span style="color:var(--ink-soft);font-size:11px;">(today)</span>':''}</td><td class="mono">${rec?fmtTime(rec.checkIn):'—'}</td><td class="mono">${rec?fmtTime(rec.checkOut):'—'}</td><td><span class="badge ${status}">${status}</span></td></tr>`;
+  }).join('');
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Attendance</div><h1>Your attendance</h1></div>
+      <div class="today mono">${new Date().toDateString()}</div>
+    </div>
+    ${railCardHTML("Today's rail")}
+    <div class="section">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:600;font-size:14px;">${today ? (today.checkOut ? 'Day complete' : 'Checked in at '+today.checkIn) : 'Not checked in yet'}</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">${today && today.checkOut ? 'Checked out at '+today.checkOut : 'Tap in when you start your workday.'}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn ${today && today.checkIn ? '' : 'btn-dark'}" ${today && today.checkIn ? 'disabled style="opacity:.4;"' : ''} onclick="checkIn()">Check in</button>
+          <button class="btn ${today && today.checkIn && !today.checkOut ? 'btn-dark' : ''}" ${!today || !today.checkIn || today.checkOut ? 'disabled style="opacity:.4;"' : ''} onclick="checkOut()">Check out</button>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Last 7 days</h2></div>
+      <table><thead><tr><th>Date</th><th>Check in</th><th>Check out</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>
+  `;
+}
+
+/* ---------- EMPLOYEE: LEAVE ---------- */
+async function submitLeave(){
+  const u = session.user;
+  const type = document.getElementById('lv-type').value;
+  const start = document.getElementById('lv-start').value;
+  const end = document.getElementById('lv-end').value;
+  const remarks = document.getElementById('lv-remarks').value.trim();
+  const err = document.getElementById('lv-err');
+  if(!start || !end){ err.textContent = 'Pick a start and end date.'; return; }
+  if(end < start){ err.textContent = 'End date must be after the start date.'; return; }
+  err.textContent = '';
+  try{
+    await api('/api/leave',{method:'POST',body:JSON.stringify({type,startDate:start,endDate:end,remarks})});
+    await refreshApp();
+    showToast('Leave request submitted');
+  }catch(e){ err.textContent = e.message; }
+}
+async function removeLeave(id){
+  if(!confirm('Remove this pending leave request?')) return;
+  try{
+    await api('/api/leave/'+encodeURIComponent(id),{method:'DELETE'});
+    await refreshApp();
+    showToast('Leave request removed');
+  }catch(e){ showToast(e.message); }
+}
+function isoDate(date){
+  const year = date.getFullYear();
+  const month = String(date.getMonth()+1).padStart(2,'0');
+  const day = String(date.getDate()).padStart(2,'0');
+  return `${year}-${month}-${day}`;
+}
+function calendarDate(value){
+  const date = value ? new Date(value+'T00:00:00') : new Date();
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+function shiftCalendar(amount){
+  ui.calendarMonth.setMonth(ui.calendarMonth.getMonth()+amount);
+  renderLeaveCalendar();
+}
+function chooseLeaveDate(value){
+  document.getElementById('lv-'+ui.calendarTarget).value = value;
+  if(ui.calendarTarget==='start' && document.getElementById('lv-end').value < value) document.getElementById('lv-end').value = value;
+  renderLeaveCalendar();
+}
+function openCalendar(target){
+  ui.calendarTarget = target;
+  ui.calendarMonth = calendarDate(document.getElementById('lv-'+target).value);
+  renderLeaveCalendar();
+}
+function renderLeaveCalendar(){
+  const calendar = document.getElementById('leave-calendar');
+  if(!calendar) return;
+  const month = ui.calendarMonth || new Date();
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const days = new Date(month.getFullYear(), month.getMonth()+1, 0).getDate();
+  const offset = first.getDay();
+  const selected = document.getElementById('lv-'+(ui.calendarTarget || 'start')).value;
+  const today = todayStr();
+  const labels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let cells = labels.map(label=>`<div class="dow">${label}</div>`).join('');
+  for(let i=0;i<offset;i++) cells += '<button class="calendar-day empty" tabindex="-1"></button>';
+  for(let day=1;day<=days;day++){
+    const value = isoDate(new Date(month.getFullYear(),month.getMonth(),day));
+    const classes = ['calendar-day', value===selected?'selected':'', value===today?'today':''].filter(Boolean).join(' ');
+    cells += `<button type="button" class="${classes}" onclick="chooseLeaveDate('${value}')" aria-label="Select ${value}">${day}</button>`;
+  }
+  calendar.innerHTML = `<div class="calendar-head"><button type="button" class="calendar-nav" onclick="shiftCalendar(-1)" aria-label="Previous month">&lsaquo;</button><strong>${month.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</strong><button type="button" class="calendar-nav" onclick="shiftCalendar(1)" aria-label="Next month">&rsaquo;</button></div><div class="calendar-grid">${cells}</div>`;
+}
+function yearCalendarHTML(requests){
+  const year = new Date().getFullYear();
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const weekdays = ['S','M','T','W','T','F','S'];
+  const holidays = {
+    [`${year}-01-26`]: 'Republic Day', [`${year}-03-04`]: 'Holi', [`${year}-03-21`]: 'Id-ul-Fitr',
+    [`${year}-03-27`]: 'Ram Navami', [`${year}-04-03`]: 'Good Friday', [`${year}-05-01`]: 'Buddha Purnima',
+    [`${year}-05-27`]: 'Id-ul-Zuha (Bakrid)', [`${year}-06-26`]: 'Muharram', [`${year}-08-15`]: 'Independence Day',
+    [`${year}-08-26`]: 'Milad-un-Nabi', [`${year}-09-04`]: 'Janmashtami', [`${year}-10-02`]: 'Gandhi Jayanti',
+    [`${year}-10-20`]: 'Dussehra', [`${year}-11-08`]: 'Diwali', [`${year}-11-24`]: 'Guru Nanak Jayanti',
+    [`${year}-12-25`]: 'Christmas Day'
+  };
+  const months = monthNames.map((monthName, monthIndex)=>{
+    const firstDay = new Date(year,monthIndex,1).getDay();
+    const daysInMonth = new Date(year,monthIndex+1,0).getDate();
+    let cells = weekdays.map(day=>`<div class="dow">${day}</div>`).join('');
+    for(let blank=0;blank<firstDay;blank++) cells += '<div class="month-day empty">0</div>';
+    for(let day=1;day<=daysInMonth;day++){
+      const date = `${year}-${String(monthIndex+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const leave = requests.find(request=>date>=request.startDate && date<=request.endDate);
+      const holiday = holidays[date];
+      const leaveClasses = leave ? [`leave-${leave.type.toLowerCase()}`,`leave-${leave.status}`] : [];
+      const classes = ['month-day',date===todayStr()?'today':'',holiday?'gov-holiday':'',...leaveClasses].filter(Boolean).join(' ');
+      const labels = [holiday,leave && `${leave.type} leave ${leave.status}`].filter(Boolean).join(' · ');
+      cells += `<button type="button" class="${classes} selectable" title="${labels || date}" onclick="openLeaveRequest('${date}')">${day}</button>`;
+    }
+    return `<div class="year-month"><h3>${monthName} ${year}</h3><div class="month-grid">${cells}</div></div>`;
+  }).join('');
+  return `<div class="section"><div class="section-head"><h2>${year} leave calendar</h2></div><div class="year-calendar-layout"><div class="year-calendar">${months}</div><div class="calendar-legend"><strong>Legend</strong><span><i class="calendar-swatch" style="background:var(--indigo-soft);"></i>Paid leave</span><span><i class="calendar-swatch" style="background:var(--brick-soft);"></i>Sick leave</span><span><i class="calendar-swatch" style="background:var(--paper-dim);"></i>Unpaid leave</span><span><i class="calendar-swatch" style="background:var(--sage);"></i>Approved</span><span><i class="calendar-swatch" style="background:var(--amber);"></i>Pending</span><span><i class="calendar-swatch" style="background:var(--brick);"></i>Rejected</span><span><i class="calendar-swatch" style="background:#DDF1EE;"></i>India government holiday</span><span><i class="calendar-swatch" style="background:var(--amber);"></i>Today</span><small style="margin-top:4px;color:var(--ink-soft);">Select any day to request leave</small></div></div></div>`;
+}
+function openLeaveRequest(date){
+  document.getElementById('lv-start').value = date;
+  document.getElementById('lv-end').value = date;
+  document.getElementById('leave-request-modal').classList.add('open');
+}
+function closeLeaveRequest(){ document.getElementById('leave-request-modal').classList.remove('open'); }
+function empLeave(){
+  const u = session.user;
+  const requests = userLeave(u.id);
+  const paidRemaining = employeeLeaveBalance(u.id,'Paid');
+  const sickRemaining = employeeLeaveBalance(u.id,'Sick');
+  const rows = requests.map(l=>`
+    <tr>
+      <td>${l.type}</td>
+      <td class="mono">${fmtDate(l.startDate)}${l.startDate!==l.endDate?' – '+fmtDate(l.endDate):''}</td>
+      <td style="max-width:220px;">${l.remarks || '—'}</td>
+      <td><span class="badge ${l.status}">${l.status}</span></td>
+      <td style="font-size:12px;color:var(--ink-soft);">${l.comment || '—'}</td>
+      <td>${l.status==='pending' ? `<button class="btn btn-sm" onclick="removeLeave('${l.id}')">Remove</button>` : '—'}</td>
+    </tr>`).join('');
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Leave &amp; time-off</div><h1>Leave requests</h1></div>
+    </div>
+    <div class="leave-counts"><div class="leave-count paid"><div class="label">Paid time off</div><div class="value">${paidRemaining} <span style="font:500 12px var(--font-body);color:var(--ink-soft);">days available</span></div><div class="employee-label">Your remaining paid leave</div></div><div class="leave-count sick"><div class="label">Sick time off</div><div class="value">${sickRemaining} <span style="font:500 12px var(--font-body);color:var(--ink-soft);">days available</span></div><div class="employee-label">Your remaining sick leave</div></div></div>
+    ${yearCalendarHTML(requests)}
+    <div class="section">
+      <div class="section-head"><h2>Your requests</h2></div>
+      ${requests.length ? `<table><thead><tr><th>Type</th><th>Dates</th><th>Remarks</th><th>Status</th><th>HR comment</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No leave requests yet.</div>`}
+    </div>
+    <div class="leave-modal" id="leave-request-modal" role="dialog" aria-modal="true" aria-labelledby="leave-modal-title">
+      <div class="leave-modal-card">
+        <div class="leave-modal-head"><h2 id="leave-modal-title">Time off type request</h2><button class="leave-modal-close" onclick="closeLeaveRequest()" aria-label="Close">&times;</button></div>
+        <div class="field"><label>Employee</label><input value="${u.name}" readonly></div>
+        <div class="field"><label>Time off type</label><select id="lv-type"><option>Paid</option><option>Sick</option><option>Unpaid</option></select></div>
+        <div class="row2"><div class="field"><label>Validity start</label><input id="lv-start" type="date" value="${todayStr()}"></div><div class="field"><label>Validity end</label><input id="lv-end" type="date" value="${todayStr()}"></div></div>
+        <div class="field"><label>Allocation</label><input value="Selected day" readonly></div>
+        <div class="field"><label>Attachment</label><input id="lv-attachment" type="file" accept="image/*,.pdf"><div class="logo-hint">For sick leave certificate, if required.</div></div>
+        <div class="field"><label>Remarks</label><textarea id="lv-remarks" rows="3" placeholder="Add context for HR (optional)"></textarea></div>
+        <div style="display:flex;gap:8px;align-items:center;"><button class="btn-primary" style="width:auto;padding:9px 20px;" onclick="submitLeave()">Submit</button><button class="btn" onclick="closeLeaveRequest()">Discard</button></div><div class="err" id="lv-err"></div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- EMPLOYEE: PROFILE ---------- */
+async function saveProfile(){
+  const u = session.user;
+  try{
+    await api('/api/profile',{method:'PATCH',body:JSON.stringify({phone:document.getElementById('pf-phone').value.trim(),address:document.getElementById('pf-address').value.trim()})});
+    await refreshApp();
+    ui.editingProfile = false;
+    showToast('Profile updated');
+  }catch(e){ showToast(e.message); }
+}
+function empProfile(){
+  const u = session.user;
+  if(ui.editingProfile){
+    return `
+    <div class="page-head"><div><div class="eyebrow">Profile</div><h1>Edit profile</h1></div></div>
+    <div class="form-card">
+      <div class="field"><label>Phone</label><input id="pf-phone" value="${u.phone||''}"></div>
+      <div class="field"><label>Address</label><input id="pf-address" value="${u.address||''}"></div>
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:14px;">Job details and salary are managed by HR and can't be edited here.</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-primary" style="width:auto;padding:9px 18px;" onclick="saveProfile()">Save changes</button>
+        <button class="btn" onclick="ui.editingProfile=false;renderMain();">Cancel</button>
+      </div>
+    </div>`;
+  }
+  const tab = ui.profileTab || 'private';
+  const content = tab==='resume' ? '<div class="empty">No resume information has been added yet.</div>' : tab==='security' ? '<div class="empty">Security and bank details are managed by HR.</div>' : `<div class="profile-grid"><div class="f"><div class="l">Full name</div><div class="v">${u.name}</div></div><div class="f"><div class="l">Employee ID</div><div class="v mono">${u.employeeId}</div></div><div class="f"><div class="l">Email</div><div class="v">${u.email}</div></div><div class="f"><div class="l">Phone</div><div class="v">${u.phone || '—'}</div></div><div class="f" style="grid-column:1/3;"><div class="l">Address</div><div class="v">${u.address || '—'}</div></div><div class="f"><div class="l">Department</div><div class="v">${u.department}</div></div><div class="f"><div class="l">Joined</div><div class="v mono">${u.joinDate}</div></div></div>`;
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Profile</div><h1>Your profile</h1></div>
+      <button class="btn btn-dark" onclick="ui.editingProfile=true;renderMain();">Edit</button>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Personal details</h2></div>
+      <div class="card"><div class="profile-hero"><div class="profile-large-avatar">${initials(u.name)}</div><div><div style="font-weight:600;font-size:16px;">${u.name}</div><div style="font-size:12px;color:var(--ink-soft);">${u.department} · ${u.employeeId}</div></div></div><div class="profile-tabs"><button class="profile-tab ${tab==='resume'?'active':''}" onclick="ui.profileTab='resume';renderMain();">Resume</button><button class="profile-tab ${tab==='private'?'active':''}" onclick="ui.profileTab='private';renderMain();">Private Info</button><button class="profile-tab ${tab==='security'?'active':''}" onclick="ui.profileTab='security';renderMain();">Security</button></div>${content}</div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Job details</h2></div>
+      <div class="card profile-grid">
+        <div class="f"><div class="l">Department</div><div class="v">${u.department}</div></div>
+        <div class="f"><div class="l">Joined</div><div class="v mono">${u.joinDate}</div></div>
+        <div class="f" style="grid-column:1/3;"><div class="l">Salary structure (read-only)</div><div class="v">${u.salary}</div></div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- ADMIN: DASHBOARD ---------- */
+function adminDashboard(){
+  const employees = db.users.filter(u=>u.role==='employee');
+  const presentToday = employees.filter(e=>{ const a=todayAttendanceFor(e.id); return a && a.checkIn; }).length;
+  const pending = db.leave.filter(l=>l.status==='pending');
+  return `
+    <div class="page-head">
+      <div><div class="eyebrow">Dashboard</div><h1>HR overview</h1></div>
+      <div class="today mono">${new Date().toDateString()}</div>
+    </div>
+    <div class="section grid grid-3">
+      <div class="card stat-card"><div class="num">${employees.length}</div><div class="lab">Total employees</div></div>
+      <div class="card stat-card"><div class="num">${presentToday}</div><div class="lab">Checked in today</div></div>
+      <div class="card stat-card"><div class="num">${pending.length}</div><div class="lab">Leave requests pending</div></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Pending approvals</h2><button class="btn btn-sm" onclick="goTo('leave')">View all</button></div>
+      ${pending.length ? pending.slice(0,4).map(l=>{
+        const emp = db.users.find(u=>u.id===l.userId);
+        return `<div class="card" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <div><b style="font-size:13.5px;">${emp?emp.name:'—'}</b> <span style="color:var(--ink-soft);font-size:12.5px;">· ${l.type} · ${fmtDate(l.startDate)}</span></div>
+          <span class="badge pending">pending</span>
+        </div>`;
+      }).join('') : `<div class="empty">No pending requests — all caught up.</div>`}
+    </div>
+    <div class="section">
+      <div class="section-head"><h2>Employees</h2><button class="btn btn-sm" onclick="goTo('employees')">Manage</button></div>
+      <div class="grid grid-3">
+        ${employees.map(e=>`<div class="card"><div style="font-weight:600;font-size:13.5px;">${e.name}</div><div style="font-size:12px;color:var(--ink-soft);">${e.department} · ${e.employeeId}</div></div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- ADMIN: EMPLOYEES ---------- */
+function setEmployeeStatus(id, status){
+  api('/api/employees/'+encodeURIComponent(id)+'/status',{method:'PATCH',body:JSON.stringify({status})})
+    .then(refreshApp).catch(e=>showToast(e.message));
+}
+function employeeProfile(employee){
+  const tab = ui.profileTab || 'resume';
+  const tabs = ['resume','private'];
+  if(session.user.role==='admin') tabs.push('salary','security');
+  const content = tab==='salary' ? `<div class="profile-grid"><div class="f"><div class="l">Salary structure</div><div class="v">${employee.salary || '—'}</div></div><div class="f"><div class="l">Wage type</div><div class="v">Fixed wage</div></div><div class="f"><div class="l">Monthly wage</div><div class="v">${employee.salary || '—'}</div></div><div class="f"><div class="l">Components</div><div class="v">Configure salary components</div></div></div>` : tab==='security' ? `<div class="empty">Bank and security details are available only to authorized HR administrators.</div>` : tab==='private' ? `<div class="profile-grid"><div class="f"><div class="l">Email</div><div class="v">${employee.email}</div></div><div class="f"><div class="l">Phone</div><div class="v">${employee.phone || '—'}</div></div><div class="f" style="grid-column:1/3;"><div class="l">Address</div><div class="v">${employee.address || '—'}</div></div><div class="f"><div class="l">Date of joining</div><div class="v mono">${employee.joinDate}</div></div></div>` : `<div class="empty">No resume information has been added yet.</div>`;
+  return `<div class="page-head"><div><div class="eyebrow">Employee profile</div><h1>${employee.name}</h1></div><button class="btn" onclick="ui.selectedEmployee=null;renderMain();">Back to employees</button></div>
+    <div class="card"><div class="profile-hero"><div class="profile-large-avatar">${employee.companyLogo ? `<img src="${employee.companyLogo}" alt="">` : initials(employee.name)}</div><div><div style="font-weight:600;font-size:16px;">${employee.name}</div><div style="font-size:12px;color:var(--ink-soft);">${employee.department} · ${employee.employeeId}</div></div></div>
+      <div class="profile-tabs">${tabs.map(item=>`<button class="profile-tab ${tab===item?'active':''}" onclick="ui.profileTab='${item}';renderMain();">${item==='private'?'Private Info':item==='salary'?'Salary Info':item==='security'?'Security':'Resume'}</button>`).join('')}</div>${content}</div>`;
+}
+function employeeCardsHTML(){
+  const query = ui.employeeSearch.toLowerCase();
+  const employees = db.users.filter(employee => `${employee.name} ${employee.employeeId} ${employee.department}`.toLowerCase().includes(query));
+  if(!employees.length) return '<div class="empty">No employees match your search.</div>';
+  const cards = employees.map(employee=>{
+    const status = employee.workStatus || 'absent';
+    const avatar = employee.companyLogo ? `<img src="${employee.companyLogo}" alt="">` : initials(employee.name);
+    return `<div class="card employee-card" onclick="ui.selectedEmployee='${employee.id}';renderMain();">
+      <div class="employee-card-top"><div class="employee-avatar">${avatar}</div><div><div style="font-weight:600;">${employee.name}</div><div style="font-size:12px;color:var(--ink-soft);">${employee.department}</div></div></div>
+      <div class="mono" style="font-size:11px;color:var(--ink-soft);">${employee.employeeId}</div>
+      <div class="employee-status"><span class="status-dot ${status}"></span>${status.replace('-', ' ')}</div>
+      ${session.user.role==='admin' ? `<select class="status-select" onchange="event.stopPropagation();setEmployeeStatus('${employee.id}',this.value)" onclick="event.stopPropagation()" aria-label="Set ${employee.name} status">
+        <option value="present" ${status==='present'?'selected':''}>Present</option><option value="on-leave" ${status==='on-leave'?'selected':''}>On leave</option><option value="absent" ${status==='absent'?'selected':''}>Absent</option>
+      </select>` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="employee-cards">${cards}</div>`;
+}
+function updateEmployeeSearch(value){
+  ui.employeeSearch = value;
+  const results = document.getElementById('employee-results');
+  if(results) results.innerHTML = employeeCardsHTML();
+}
+function employeeDirectory(){
+  if(ui.selectedEmployee){
+    const employee = db.users.find(item=>item.id===ui.selectedEmployee);
+    return employee ? employeeProfile(employee) : '';
+  }
+  const today = todayAttendanceFor(session.user.id);
+  const checkedIn = Boolean(today && today.checkIn);
+  const checkedOut = Boolean(today && today.checkOut);
+  const attendancePanel = session.user.role === 'employee' ? `<div class="attendance-panel"><div><div class="attendance-label">Today's attendance</div><div class="attendance-time">${checkedOut ? 'Day complete · Checked out at '+today.checkOut : checkedIn ? 'Since '+today.checkIn : 'Not checked in yet'}</div></div><div class="attendance-actions"><button class="btn btn-dark" onclick="checkIn()" ${checkedIn?'disabled':''}>Check in</button><button class="btn btn-dark" onclick="checkOut()" ${!checkedIn || checkedOut?'disabled':''}>Check out</button></div></div>` : '';
+  return `<div class="page-head"><div><div class="eyebrow">Employees</div><h1>Team directory</h1></div><button class="btn btn-dark" onclick="ui.creatingEmployee=true;renderMain();">Create employee</button></div>
+    <div class="section"><input class="field employee-search" placeholder="Search employees" value="${ui.employeeSearch}" oninput="updateEmployeeSearch(this.value)"></div>
+    <div id="employee-results">${employeeCardsHTML()}</div>${attendancePanel}`;
+}
+async function saveEmployeeEdit(id){
+  try{
+    await api('/api/employees/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({department:document.getElementById('em-dept').value.trim(),phone:document.getElementById('em-phone').value.trim(),address:document.getElementById('em-address').value.trim(),salary:document.getElementById('em-salary').value.trim()})});
+    await refreshApp();
+    ui.adminEmpFilter = null;
+    showToast('Employee details updated');
+  }catch(e){ showToast(e.message); }
+}
+async function createEmployee(){
+  const err = document.getElementById('create-employee-err');
+  try{
+    const result = await api('/api/employees',{method:'POST',body:JSON.stringify({
+      name:document.getElementById('new-employee-name').value.trim(),
+      email:document.getElementById('new-employee-email').value.trim(),
+      phone:document.getElementById('new-employee-phone').value.trim()
+    })});
+    ui.creatingEmployee = false;
+    ui.createdCredentials = {employeeId:result.user.employeeId, email:result.user.email, password:result.temporaryPassword};
+    await refreshApp();
+    showToast('Employee account created');
+  }catch(e){ err.textContent = e.message; }
+}
+function adminEmployees(){
+  const employees = db.users.filter(u=>u.role==='employee');
+  const editing = ui.adminEmpFilter ? db.users.find(u=>u.id===ui.adminEmpFilter) : null;
+  if(editing){
+    return `
+    <div class="page-head"><div><div class="eyebrow">Employees</div><h1>${editing.name}</h1></div>
+      <button class="btn" onclick="ui.adminEmpFilter=null;renderMain();">Back to list</button></div>
+    <div class="form-card">
+      <div class="field"><label>Department</label><input id="em-dept" value="${editing.department||''}"></div>
+      <div class="field"><label>Phone</label><input id="em-phone" value="${editing.phone||''}"></div>
+      <div class="field"><label>Address</label><input id="em-address" value="${editing.address||''}"></div>
+      <div class="field"><label>Salary structure</label><input id="em-salary" value="${editing.salary||''}"></div>
+      <button class="btn-primary" style="width:auto;padding:9px 18px;" onclick="saveEmployeeEdit('${editing.id}')">Save changes</button>
+    </div>`;
+  }
+  if(ui.creatingEmployee){
+    return `<div class="page-head"><div><div class="eyebrow">Employees</div><h1>Create employee</h1></div>
+      <button class="btn" onclick="ui.creatingEmployee=false;renderMain();">Back to list</button></div>
+      <div class="form-card"><div class="sub">The employee will automatically inherit your company name and logo. The system generates the employee ID and temporary password.</div>
+        <div class="field"><label>Employee name</label><input id="new-employee-name" placeholder="Jordan Doe"></div>
+        <div class="field"><label>Email</label><input id="new-employee-email" type="email" placeholder="jordan@company.com"></div>
+        <div class="field"><label>Phone</label><input id="new-employee-phone" placeholder="Optional"></div>
+        <button class="btn-primary" onclick="createEmployee()">Create employee</button><div class="err" id="create-employee-err"></div>
+      </div>`;
+  }
+  const credentials = ui.createdCredentials ? `<div class="demo-note"><b>New account created</b><br>Employee ID: <span class="mono">${ui.createdCredentials.employeeId}</span><br>Email: ${ui.createdCredentials.email}<br>Temporary password: <span class="mono">${ui.createdCredentials.password}</span><br><button class="btn btn-sm" style="margin-top:8px;" onclick="ui.createdCredentials=null;renderMain();">Dismiss</button></div>` : '';
+  const rows = employees.map(e=>`
+    <tr>
+      <td><b>${e.name}</b></td>
+      <td class="mono">${e.employeeId}</td>
+      <td>${e.department}</td>
+      <td>${e.email}</td>
+      <td><button class="btn btn-sm" onclick="ui.adminEmpFilter='${e.id}';renderMain();">Edit</button></td>
+    </tr>`).join('');
+  return `
+    <div class="page-head"><div><div class="eyebrow">Employees</div><h1>All employees</h1></div><button class="btn btn-dark" onclick="ui.creatingEmployee=true;renderMain();">Create employee</button></div>
+    ${credentials}
+    ${employees.length ? `<table><thead><tr><th>Name</th><th>ID</th><th>Department</th><th>Email</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No employees registered yet.</div>`}
+  `;
+}
+
+/* ---------- ADMIN: ATTENDANCE ---------- */
+function adminAttendance(){
+  const employees = db.users.filter(u=>u.role==='employee');
+  const rows = employees.map(e=>{
+    const rec = todayAttendanceFor(e.id);
+    const status = rec ? rec.status : 'absent';
+    return `<tr><td><b>${e.name}</b></td><td class="mono">${rec?fmtTime(rec.checkIn):'—'}</td><td class="mono">${rec?fmtTime(rec.checkOut):'—'}</td><td><span class="badge ${status}">${status}</span></td></tr>`;
+  }).join('');
+  return `
+    <div class="page-head"><div><div class="eyebrow">Attendance</div><h1>Today across the team</h1></div><div class="today mono">${new Date().toDateString()}</div></div>
+    ${railCardHTML('Workday rail')}
+    <div class="section">
+      ${employees.length ? `<table><thead><tr><th>Employee</th><th>Check in</th><th>Check out</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No employees yet.</div>`}
+    </div>
+  `;
+}
+
+/* ---------- ADMIN: LEAVE APPROVALS ---------- */
+async function decideLeave(id, decision){
+  const commentEl = document.getElementById('cm-'+id);
+  try{
+    await api('/api/leave/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status:decision,comment:commentEl ? commentEl.value.trim() : ''})});
+    await refreshApp();
+    showToast('Request '+decision);
+  }catch(e){ showToast(e.message); }
+}
+function adminLeave(){
+  const query = ui.leaveSearch.trim().toLowerCase();
+  const allRequests = [...db.leave].sort((a,b)=>b.createdAt-a.createdAt);
+  const requests = allRequests.filter(l=>{
+    const emp = db.users.find(u=>u.id===l.userId);
+    return `${emp?emp.name:''} ${l.type} ${l.startDate} ${l.endDate} ${l.status}`.toLowerCase().includes(query);
+  });
+  const selectedEmployee = db.users.find(u=>u.id===ui.selectedLeaveEmployee) || null;
+  const paidDays = selectedEmployee ? employeeLeaveBalance(selectedEmployee.id,'Paid') : null;
+  const sickDays = selectedEmployee ? employeeLeaveBalance(selectedEmployee.id,'Sick') : null;
+  const rows = requests.map(l=>{
+    const emp = db.users.find(u=>u.id===l.userId);
+    return `<tr>
+      <td class="leave-name" onclick="selectLeaveEmployee('${l.userId}')"><b>${emp?emp.name:'—'}</b><div style="font-size:10.5px;color:var(--ink-soft);margin-top:4px;">Paid ${employeeLeaveBalance(l.userId,'Paid')}d · Sick ${employeeLeaveBalance(l.userId,'Sick')}d</div></td><td class="mono">${fmtDate(l.startDate)}</td><td class="mono">${fmtDate(l.endDate)}</td><td>${l.type}</td><td>${(() => { const approved = latestApprovedLeave(l.userId); return approved ? `<b style="color:var(--indigo);">${approved.type} leave</b><div style="font-size:10.5px;color:var(--ink-soft);margin-top:3px;">${fmtDate(approved.startDate)}</div>` : '<span style="color:var(--ink-soft);">None yet</span>'; })()}</td><td><span class="badge ${l.status}">${l.status}</span></td><td>${l.status==='pending' ? `<div class="leave-detail-actions"><button class="btn btn-approve btn-sm" onclick="decideLeave('${l.id}','approved')">Approve</button><button class="btn btn-reject btn-sm" onclick="decideLeave('${l.id}','rejected')">Reject</button></div>` : `<span style="font-size:12px;color:var(--ink-soft);">${l.comment||'Decided'}</span>`}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="page-head"><div><div class="eyebrow">Leave request zone</div><h1>Leave approvals</h1></div><div class="today mono">${allRequests.length} total request${allRequests.length!==1?'s':''}</div></div>
+    <div class="leave-zone">
+      <div class="leave-zone-title">Time off <span style="font:400 11px var(--font-body);text-transform:none;letter-spacing:0;color:var(--ink-soft);">HR admin controls</span></div>
+      <div class="leave-toolbar"><input class="leave-search" placeholder="Search by employee, type, date or status" value="${ui.leaveSearch}" oninput="ui.leaveSearch=this.value;renderMain()" aria-label="Search leave requests"></div>
+      <div class="leave-counts"><div class="leave-count paid"><div class="label">Paid leave</div><div class="value">${paidDays === null ? '—' : paidDays} <span style="font:500 12px var(--font-body);color:var(--ink-soft);">days remaining</span></div><div class="employee-label">${selectedEmployee ? selectedEmployee.name : 'Click an employee name below'}</div></div><div class="leave-count sick"><div class="label">Sick leave</div><div class="value">${sickDays === null ? '—' : sickDays} <span style="font:500 12px var(--font-body);color:var(--ink-soft);">days remaining</span></div><div class="employee-label">${selectedEmployee ? selectedEmployee.name : 'Click an employee name below'}</div></div></div>
+      ${requests.length ? `<table class="leave-table"><thead><tr><th>Name</th><th>Start date</th><th>End date</th><th>Time off type</th><th>Last approved leave</th><th>Status</th><th>HR controls</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">${allRequests.length?'No leave requests match your search.':'No leave requests yet.'}</div>`}
+    </div>
+  `;
+}
+
+/* ---------- BOOT ---------- */
+async function boot(){
+  try{
+    await loadDB();
+    if(session.user) enterApp();
+  }catch(e){
+    // An unauthenticated visitor should remain on the sign-in screen.
+  }
+  positionAuthMarker();
+  setInterval(positionAuthMarker, 60000);
+}
+boot();
 </script>
 </body>
 </html>
