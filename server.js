@@ -99,6 +99,12 @@ app.post('/api/leave', requireAuth, (req, res) => {
     .run(id('lv'), req.session.userId, type, startDate, endDate, String(req.body.remarks || '').trim(), Date.now());
   res.status(201).json({ ok: true });
 });
+app.delete('/api/leave/:id', requireAuth, (req, res) => {
+  const result = db.prepare(`DELETE FROM leave_requests
+    WHERE id = ? AND user_id = ? AND status = 'pending'`).run(req.params.id, req.session.userId);
+  if (!result.changes) return res.status(404).json({ error: 'Only your pending leave requests can be removed.' });
+  res.json({ ok: true });
+});
 app.patch('/api/leave/:id', requireAdmin, (req, res) => {
   const decision = ['approved', 'rejected'].includes(req.body.status) ? req.body.status : null;
   if (!decision) return res.status(400).json({ error: 'Invalid leave decision.' });

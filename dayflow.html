@@ -32,6 +32,19 @@
     font-family:var(--font-body);
     -webkit-font-smoothing:antialiased;
     min-height:100vh;
+    position:relative;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    opacity:.34;
+    background-image:linear-gradient(rgba(30,33,40,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(30,33,40,.035) 1px,transparent 1px);
+    background-size:32px 32px;
+    mask-image:linear-gradient(to bottom,black,transparent 82%);
+    z-index:-1;
   }
   h1,h2,h3,.disp{font-family:var(--font-display);letter-spacing:-0.01em;}
   .mono{font-family:var(--font-mono);}
@@ -140,7 +153,38 @@
   .logout-btn{width:100%;margin-top:10px;padding:8px;border-radius:7px;border:1px solid #3A3E52;background:transparent;color:#C7C9D2;font-size:12px;}
   .logout-btn:hover{background:#2A2E3A;}
 
-  .main{flex:1;padding:36px 44px;max-width:1040px;}
+  .main{
+    flex:1;
+    min-width:0;
+    max-width:none;
+    padding:36px clamp(32px,5vw,84px);
+    position:relative;
+    isolation:isolate;
+  }
+  .main::before{
+    content:"";
+    position:absolute;
+    width:min(38vw,520px);
+    aspect-ratio:1;
+    top:42px;
+    right:-170px;
+    border:1px solid rgba(76,95,213,.14);
+    border-radius:50%;
+    box-shadow:0 0 0 28px rgba(232,163,61,.06),0 0 0 58px rgba(76,95,213,.045);
+    pointer-events:none;
+    z-index:-1;
+  }
+  .main::after{
+    content:"09 12 18";
+    position:absolute;
+    top:76px;
+    right:clamp(32px,5vw,84px);
+    color:rgba(30,33,40,.16);
+    font:500 10px var(--font-mono);
+    letter-spacing:.2em;
+    pointer-events:none;
+    z-index:-1;
+  }
   .page-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;}
   .page-head h1{font-size:26px;margin:0;}
   .page-head .eyebrow{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;}
@@ -155,7 +199,15 @@
   .grid-4{grid-template-columns:repeat(4,1fr);}
   .grid-3{grid-template-columns:repeat(3,1fr);}
   .grid-2{grid-template-columns:repeat(2,1fr);}
-  @media(max-width:900px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr 1fr;}}
+  @media(max-width:900px){
+    .grid-4,.grid-3,.grid-2{grid-template-columns:1fr 1fr;}
+    .main{padding:28px 24px;}
+    .main::before,.main::after{display:none;}
+  }
+  @media(max-width:620px){
+    .sidebar{width:184px;}
+    .main{padding:24px 18px;}
+  }
 
   .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
   .stat-card .num{font-family:var(--font-display);font-size:30px;font-weight:700;}
@@ -569,6 +621,14 @@ async function submitLeave(){
     showToast('Leave request submitted');
   }catch(e){ err.textContent = e.message; }
 }
+async function removeLeave(id){
+  if(!confirm('Remove this pending leave request?')) return;
+  try{
+    await api('/api/leave/'+encodeURIComponent(id),{method:'DELETE'});
+    await refreshApp();
+    showToast('Leave request removed');
+  }catch(e){ showToast(e.message); }
+}
 function isoDate(date){
   const year = date.getFullYear();
   const month = String(date.getMonth()+1).padStart(2,'0');
@@ -622,6 +682,7 @@ function empLeave(){
       <td style="max-width:220px;">${l.remarks || '—'}</td>
       <td><span class="badge ${l.status}">${l.status}</span></td>
       <td style="font-size:12px;color:var(--ink-soft);">${l.comment || '—'}</td>
+      <td>${l.status==='pending' ? `<button class="btn btn-sm" onclick="removeLeave('${l.id}')">Remove</button>` : '—'}</td>
     </tr>`).join('');
   ui.calendarTarget = 'start';
   ui.calendarMonth = calendarDate();
@@ -648,7 +709,7 @@ function empLeave(){
     </div>
     <div class="section">
       <div class="section-head"><h2>Your requests</h2></div>
-      ${requests.length ? `<table><thead><tr><th>Type</th><th>Dates</th><th>Remarks</th><th>Status</th><th>HR comment</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No leave requests yet.</div>`}
+      ${requests.length ? `<table><thead><tr><th>Type</th><th>Dates</th><th>Remarks</th><th>Status</th><th>HR comment</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No leave requests yet.</div>`}
     </div>
   `;
 }
