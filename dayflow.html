@@ -92,6 +92,16 @@
     background:#fff;font-family:var(--font-body);font-size:14px;color:var(--ink);
   }
   .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--indigo);outline-offset:1px;border-color:var(--indigo);}
+  .date-picker{border:1px solid var(--line);border-radius:8px;background:var(--paper);padding:10px;margin-bottom:14px;}
+  .calendar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .calendar-head strong{font-family:var(--font-display);font-size:13px;}
+  .calendar-nav{border:1px solid var(--line);background:#fff;border-radius:6px;width:28px;height:26px;font-size:15px;line-height:1;}
+  .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;}
+  .calendar-grid .dow{font-family:var(--font-mono);font-size:9px;color:var(--ink-soft);padding:3px 0;}
+  .calendar-day{border:0;background:transparent;border-radius:5px;padding:6px 0;font-size:11px;color:var(--ink);}
+  .calendar-day:hover,.calendar-day.selected{background:var(--indigo);color:#fff;}
+  .calendar-day.today{box-shadow:inset 0 0 0 1px var(--amber);}
+  .calendar-day.empty{pointer-events:none;}
   .role-pick{display:flex;gap:8px;}
   .role-pick button{flex:1;padding:9px 0;border-radius:8px;border:1.5px solid var(--line);background:#fff;font-size:13px;font-weight:500;color:var(--ink-soft);}
   .role-pick button.sel{border-color:var(--indigo);background:var(--indigo-soft);color:var(--indigo);}
@@ -287,40 +297,27 @@ let db = null;
 let session = { user: null };
 let ui = { view: 'dashboard', authTab: 'signin', pickedRole: 'employee', adminEmpFilter: null, editingProfile: false };
 
-function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function fmtDate(d){ return new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
 function fmtTime(t){ return t || '—'; }
 function initials(name){ return (name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
 
-function seedDB(){
-  return {
-    users:[
-      {id:'u_admin', employeeId:'EMP-001', name:'Priya Nair', email:'admin@dayflow.io', password:'admin123', role:'admin', phone:'+91 98765 43210', address:'HR Wing, HQ Campus', department:'Human Resources', salary:'₹14,20,000 / yr', joinDate:'2021-03-01'},
-      {id:'u_emp1', employeeId:'EMP-002', name:'Asha Rao', email:'asha@dayflow.io', password:'employee123', role:'employee', phone:'+91 90000 11122', address:'204 Lakeview Rd, Pune', department:'Engineering', salary:'₹9,60,000 / yr', joinDate:'2023-07-14'},
-      {id:'u_emp2', employeeId:'EMP-003', name:'Ravi Menon', email:'ravi@dayflow.io', password:'employee123', role:'employee', phone:'+91 90000 33344', address:'12 MG Road, Bengaluru', department:'Design', salary:'₹8,40,000 / yr', joinDate:'2022-11-02'}
-    ],
-    attendance:[
-      {id:uid('att'), userId:'u_emp1', date: todayStr(), checkIn:'09:12', checkOut:null, status:'present'},
-    ],
-    leave:[
-      {id:uid('lv'), userId:'u_emp1', type:'Sick', startDate: todayStr(), endDate: todayStr(), remarks:'Fever, resting at home.', status:'pending', comment:'', createdAt:Date.now()},
-      {id:uid('lv'), userId:'u_emp2', type:'Paid', startDate: todayStr(), endDate: todayStr(), remarks:'Family function.', status:'approved', comment:'Enjoy!', createdAt:Date.now()-90000}
-    ]
-  };
-}
-
 async function loadDB(){
-  try{
-    const res = await window.storage.get('dayflow_db', true);
-    db = JSON.parse(res.value);
-  }catch(e){
-    db = seedDB();
-    await saveDB();
-  }
+  const res = await fetch('/api/bootstrap');
+  if(!res.ok) throw new Error('Unable to load Dayflow data.');
+  db = await res.json();
+  session.user = db.user;
 }
-async function saveDB(){
-  await window.storage.set('dayflow_db', JSON.stringify(db), true);
+async function api(path, options={}){
+  const res = await fetch(path, {headers:{'Content-Type':'application/json'}, ...options});
+  const body = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(body.error || 'Something went wrong.');
+  return body;
+}
+async function refreshApp(){
+  await loadDB();
+  renderSidebar();
+  renderMain();
 }
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -346,11 +343,13 @@ async function doSignIn(){
   const email = document.getElementById('si-email').value.trim().toLowerCase();
   const pass = document.getElementById('si-password').value;
   const err = document.getElementById('si-err');
-  const u = db.users.find(x=>x.email.toLowerCase()===email && x.password===pass);
-  if(!u){ err.textContent = 'Incorrect email or password.'; return; }
-  err.textContent='';
-  session.user = u;
-  enterApp();
+  try{
+    const result = await api('/api/auth/sign-in',{method:'POST',body:JSON.stringify({email,password:pass})});
+    err.textContent='';
+    session.user = result.user;
+    await loadDB();
+    enterApp();
+  }catch(e){ err.textContent = e.message; }
 }
 async function doSignUp(){
   const name = document.getElementById('su-name').value.trim();
@@ -360,15 +359,16 @@ async function doSignUp(){
   const err = document.getElementById('su-err');
   if(!name || !empId || !email || !pass){ err.textContent='Please fill in every field.'; return; }
   if(pass.length < 6){ err.textContent='Password must be at least 6 characters.'; return; }
-  if(db.users.some(u=>u.email.toLowerCase()===email)){ err.textContent='An account with this email already exists.'; return; }
-  const u = {id:uid('u'), employeeId:empId, name, email, password:pass, role:ui.pickedRole, phone:'', address:'', department: ui.pickedRole==='admin'?'Human Resources':'Unassigned', salary: ui.pickedRole==='admin'?'—':'—', joinDate: todayStr()};
-  db.users.push(u);
-  await saveDB();
-  err.textContent='';
-  session.user = u;
-  enterApp();
+  try{
+    const result = await api('/api/auth/sign-up',{method:'POST',body:JSON.stringify({name,employeeId:empId,email,password:pass,role:ui.pickedRole})});
+    err.textContent='';
+    session.user = result.user;
+    await loadDB();
+    enterApp();
+  }catch(e){ err.textContent = e.message; }
 }
-function logout(){
+async function logout(){
+  await api('/api/auth/logout',{method:'POST'}).catch(()=>{});
   session.user = null;
   document.getElementById('app-screen').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
@@ -505,28 +505,18 @@ function empDashboard(){
 
 /* ---------- EMPLOYEE: ATTENDANCE ---------- */
 async function checkIn(){
-  const u = session.user;
-  let rec = todayAttendanceFor(u.id);
-  const time = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  if(!rec){
-    rec = {id:uid('att'), userId:u.id, date:todayStr(), checkIn:time, checkOut:null, status:'present'};
-    db.attendance.push(rec);
-  } else if(!rec.checkIn){
-    rec.checkIn = time; rec.status='present';
-  }
-  await saveDB();
-  showToast('Checked in at '+time);
-  renderMain();
+  try{
+    await api('/api/attendance/check-in',{method:'POST'});
+    await refreshApp();
+    showToast('Checked in');
+  }catch(e){ showToast(e.message); }
 }
 async function checkOut(){
-  const u = session.user;
-  const rec = todayAttendanceFor(u.id);
-  if(rec && !rec.checkOut){
-    rec.checkOut = new Date().toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-    await saveDB();
-    showToast('Checked out at '+rec.checkOut);
-    renderMain();
-  }
+  try{
+    await api('/api/attendance/check-out',{method:'POST'});
+    await refreshApp();
+    showToast('Checked out');
+  }catch(e){ showToast(e.message); }
 }
 function empAttendance(){
   const u = session.user;
@@ -573,10 +563,49 @@ async function submitLeave(){
   if(!start || !end){ err.textContent = 'Pick a start and end date.'; return; }
   if(end < start){ err.textContent = 'End date must be after the start date.'; return; }
   err.textContent = '';
-  db.leave.push({id:uid('lv'), userId:u.id, type, startDate:start, endDate:end, remarks, status:'pending', comment:'', createdAt:Date.now()});
-  await saveDB();
-  showToast('Leave request submitted');
-  renderMain();
+  try{
+    await api('/api/leave',{method:'POST',body:JSON.stringify({type,startDate:start,endDate:end,remarks})});
+    await refreshApp();
+    showToast('Leave request submitted');
+  }catch(e){ err.textContent = e.message; }
+}
+function isoDate(date){ return date.toISOString().slice(0,10); }
+function calendarDate(value){
+  const date = value ? new Date(value+'T00:00:00') : new Date();
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+function shiftCalendar(amount){
+  ui.calendarMonth.setMonth(ui.calendarMonth.getMonth()+amount);
+  renderLeaveCalendar();
+}
+function chooseLeaveDate(value){
+  document.getElementById('lv-'+ui.calendarTarget).value = value;
+  if(ui.calendarTarget==='start' && document.getElementById('lv-end').value < value) document.getElementById('lv-end').value = value;
+  renderLeaveCalendar();
+}
+function openCalendar(target){
+  ui.calendarTarget = target;
+  ui.calendarMonth = calendarDate(document.getElementById('lv-'+target).value);
+  renderLeaveCalendar();
+}
+function renderLeaveCalendar(){
+  const calendar = document.getElementById('leave-calendar');
+  if(!calendar) return;
+  const month = ui.calendarMonth || new Date();
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const days = new Date(month.getFullYear(), month.getMonth()+1, 0).getDate();
+  const offset = first.getDay();
+  const selected = document.getElementById('lv-'+(ui.calendarTarget || 'start')).value;
+  const today = todayStr();
+  const labels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let cells = labels.map(label=>`<div class="dow">${label}</div>`).join('');
+  for(let i=0;i<offset;i++) cells += '<button class="calendar-day empty" tabindex="-1"></button>';
+  for(let day=1;day<=days;day++){
+    const value = isoDate(new Date(month.getFullYear(),month.getMonth(),day));
+    const classes = ['calendar-day', value===selected?'selected':'', value===today?'today':''].filter(Boolean).join(' ');
+    cells += `<button type="button" class="${classes}" onclick="chooseLeaveDate('${value}')" aria-label="Select ${value}">${day}</button>`;
+  }
+  calendar.innerHTML = `<div class="calendar-head"><button type="button" class="calendar-nav" onclick="shiftCalendar(-1)" aria-label="Previous month">&lsaquo;</button><strong>${month.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</strong><button type="button" class="calendar-nav" onclick="shiftCalendar(1)" aria-label="Next month">&rsaquo;</button></div><div class="calendar-grid">${cells}</div>`;
 }
 function empLeave(){
   const u = session.user;
@@ -589,6 +618,9 @@ function empLeave(){
       <td><span class="badge ${l.status}">${l.status}</span></td>
       <td style="font-size:12px;color:var(--ink-soft);">${l.comment || '—'}</td>
     </tr>`).join('');
+  ui.calendarTarget = 'start';
+  ui.calendarMonth = calendarDate();
+  setTimeout(renderLeaveCalendar,0);
   return `
     <div class="page-head">
       <div><div class="eyebrow">Leave &amp; time-off</div><h1>Leave requests</h1></div>
@@ -600,9 +632,10 @@ function empLeave(){
           <select id="lv-type"><option>Paid</option><option>Sick</option><option>Unpaid</option></select>
         </div>
         <div class="row2">
-          <div class="field"><label>Start date</label><input id="lv-start" type="date" value="${todayStr()}"></div>
-          <div class="field"><label>End date</label><input id="lv-end" type="date" value="${todayStr()}"></div>
+          <div class="field"><label>Start date</label><input id="lv-start" type="text" value="${todayStr()}" readonly onclick="openCalendar('start')" aria-label="Start date, open calendar"></div>
+          <div class="field"><label>End date</label><input id="lv-end" type="text" value="${todayStr()}" readonly onclick="openCalendar('end')" aria-label="End date, open calendar"></div>
         </div>
+        <div class="date-picker" id="leave-calendar" aria-label="Leave date calendar"></div>
         <div class="field"><label>Remarks</label><textarea id="lv-remarks" rows="3" placeholder="Add context for HR (optional)"></textarea></div>
         <button class="btn-primary" onclick="submitLeave()">Submit request</button>
         <div class="err" id="lv-err"></div>
@@ -618,12 +651,12 @@ function empLeave(){
 /* ---------- EMPLOYEE: PROFILE ---------- */
 async function saveProfile(){
   const u = session.user;
-  u.phone = document.getElementById('pf-phone').value.trim();
-  u.address = document.getElementById('pf-address').value.trim();
-  await saveDB();
-  ui.editingProfile = false;
-  showToast('Profile updated');
-  renderMain();
+  try{
+    await api('/api/profile',{method:'PATCH',body:JSON.stringify({phone:document.getElementById('pf-phone').value.trim(),address:document.getElementById('pf-address').value.trim()})});
+    await refreshApp();
+    ui.editingProfile = false;
+    showToast('Profile updated');
+  }catch(e){ showToast(e.message); }
 }
 function empProfile(){
   const u = session.user;
@@ -702,15 +735,12 @@ function adminDashboard(){
 
 /* ---------- ADMIN: EMPLOYEES ---------- */
 async function saveEmployeeEdit(id){
-  const u = db.users.find(x=>x.id===id);
-  u.department = document.getElementById('em-dept').value.trim();
-  u.phone = document.getElementById('em-phone').value.trim();
-  u.address = document.getElementById('em-address').value.trim();
-  u.salary = document.getElementById('em-salary').value.trim();
-  await saveDB();
-  ui.adminEmpFilter = null;
-  showToast('Employee details updated');
-  renderMain();
+  try{
+    await api('/api/employees/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({department:document.getElementById('em-dept').value.trim(),phone:document.getElementById('em-phone').value.trim(),address:document.getElementById('em-address').value.trim(),salary:document.getElementById('em-salary').value.trim()})});
+    await refreshApp();
+    ui.adminEmpFilter = null;
+    showToast('Employee details updated');
+  }catch(e){ showToast(e.message); }
 }
 function adminEmployees(){
   const employees = db.users.filter(u=>u.role==='employee');
@@ -760,13 +790,12 @@ function adminAttendance(){
 
 /* ---------- ADMIN: LEAVE APPROVALS ---------- */
 async function decideLeave(id, decision){
-  const l = db.leave.find(x=>x.id===id);
   const commentEl = document.getElementById('cm-'+id);
-  l.status = decision;
-  l.comment = commentEl ? commentEl.value.trim() : '';
-  await saveDB();
-  showToast('Request '+decision);
-  renderMain();
+  try{
+    await api('/api/leave/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status:decision,comment:commentEl ? commentEl.value.trim() : ''})});
+    await refreshApp();
+    showToast('Request '+decision);
+  }catch(e){ showToast(e.message); }
 }
 function adminLeave(){
   const requests = [...db.leave].sort((a,b)=>b.createdAt-a.createdAt);
@@ -795,7 +824,12 @@ function adminLeave(){
 
 /* ---------- BOOT ---------- */
 async function boot(){
-  await loadDB();
+  try{
+    await loadDB();
+    if(session.user) enterApp();
+  }catch(e){
+    // An unauthenticated visitor should remain on the sign-in screen.
+  }
   positionAuthMarker();
   setInterval(positionAuthMarker, 60000);
 }
