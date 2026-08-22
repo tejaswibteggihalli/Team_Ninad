@@ -17,9 +17,11 @@ app.use(session({
   cookie: { httpOnly: true, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 }
 }));
 
-function publicUser(user) {
+function publicUser(user, includeSensitive = false) {
   if (!user) return null;
-  return { id: user.id, companyName: user.company_name, companyLogo: user.company_logo, employeeId: user.employee_id, name: user.name, email: user.email, role: user.role, phone: user.phone, address: user.address, department: user.department, salary: user.salary, joinDate: user.join_date, mustChangePassword: Boolean(user.must_change_password) };
+  const result = { id: user.id, companyName: user.company_name, companyLogo: user.company_logo, employeeId: user.employee_id, name: user.name, email: user.email, role: user.role, phone: user.phone, address: user.address, department: user.department, joinDate: user.join_date, workStatus: user.work_status, mustChangePassword: Boolean(user.must_change_password) };
+  if (includeSensitive) result.salary = user.salary;
+  return result;
 }
 function userById(id) { return db.prepare('SELECT * FROM users WHERE id = ?').get(id); }
 function requireAuth(req, res, next) { if (!req.session.userId) return res.status(401).json({ error: 'Authentication required.' }); next(); }
@@ -46,7 +48,7 @@ app.post('/api/auth/sign-in', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE lower(email) = lower(?) OR upper(employee_id) = upper(?)').get(email, email);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Incorrect email or password.' });
   req.session.userId = user.id;
-  res.json({ user: publicUser(user) });
+  res.json({ user: publicUser(user, user.role === 'admin') });
 });
 app.post('/api/auth/sign-up', (req, res) => {
   const companyName = String(req.body.companyName || '').trim();
@@ -65,7 +67,7 @@ app.post('/api/auth/sign-up', (req, res) => {
   db.prepare(`INSERT INTO users (id, company_name, company_logo, employee_id, name, email, password_hash, must_change_password, role, phone, department, salary, join_date, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'admin', ?, 'Human Resources', '—', ?, ?)`).run(userId, companyName, companyLogo, employeeId, name, email, bcrypt.hashSync(password, 12), phone, joinDate, Date.now());
   req.session.userId = userId;
-  res.status(201).json({ user: publicUser(userById(userId)) });
+  res.status(201).json({ user: publicUser(userById(userId), true) });
 });
 app.post('/api/employees', requireAdmin, (req, res) => {
   const admin = userById(req.session.userId);
@@ -82,13 +84,14 @@ app.post('/api/employees', requireAdmin, (req, res) => {
   const userId = id('u');
   db.prepare(`INSERT INTO users (id, company_name, company_logo, employee_id, name, email, password_hash, must_change_password, role, phone, department, salary, join_date, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'employee', ?, 'Unassigned', '—', ?, ?)`).run(userId, companyName, companyLogo, employeeId, name, email, bcrypt.hashSync(password, 12), phone, joinDate, Date.now());
-  res.status(201).json({ user: publicUser(userById(userId)), temporaryPassword: password });
+  res.status(201).json({ user: publicUser(userById(userId), true), temporaryPassword: password });
 });
 app.patch('/api/auth/password', requireAuth, (req, res) => {
   const password = String(req.body.password || '');
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
   db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(bcrypt.hashSync(password, 12), req.session.userId);
-  res.json({ user: publicUser(userById(req.session.userId)) });
+  const updatedUser = userById(req.session.userId);
+  res.json({ user: publicUser(updatedUser, updatedUser.role === 'admin') });
 });
 app.post('/api/auth/logout', (req, res) => req.session.destroy(() => res.json({ ok: true })));
 app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user: publicUser(userById(req.session.userId)) }));
@@ -97,8 +100,8 @@ app.get('/api/bootstrap', requireAuth, (req, res) => {
   const user = userById(req.session.userId);
   const attendance = user.role === 'admin' ? db.prepare('SELECT * FROM attendance ORDER BY date DESC').all() : db.prepare('SELECT * FROM attendance WHERE user_id = ? ORDER BY date DESC').all(user.id);
   const leave = user.role === 'admin' ? db.prepare('SELECT * FROM leave_requests ORDER BY created_at DESC').all() : db.prepare('SELECT * FROM leave_requests WHERE user_id = ? ORDER BY created_at DESC').all(user.id);
-  const users = user.role === 'admin' ? db.prepare('SELECT * FROM users WHERE role = \'employee\' ORDER BY name').all() : [];
-  res.json({ user: publicUser(user), users: users.map(publicUser), attendance: attendance.map(mapAttendance), leave: leave.map(mapLeave) });
+  const users = db.prepare('SELECT * FROM users WHERE role = \'employee\' ORDER BY name').all();
+  res.json({ user: publicUser(user, user.role === 'admin'), users: users.map(employee => publicUser(employee, user.role === 'admin')), attendance: attendance.map(mapAttendance), leave: leave.map(mapLeave) });
 });
 
 app.patch('/api/profile', requireAuth, (req, res) => {
@@ -111,6 +114,14 @@ app.patch('/api/employees/:id', requireAdmin, (req, res) => {
   db.prepare('UPDATE users SET department = ?, phone = ?, address = ?, salary = ? WHERE id = ?').run(String(req.body.department || '').trim(), String(req.body.phone || '').trim(), String(req.body.address || '').trim(), String(req.body.salary || '').trim(), employee.id);
   res.json({ user: publicUser(userById(employee.id)) });
 });
+app.patch('/api/employees/:id/status', requireAdmin, (req, res) => {
+  const status = ['present', 'on-leave', 'absent'].includes(req.body.status) ? req.body.status : null;
+  const employee = userById(req.params.id);
+  if (!employee || employee.role !== 'employee') return res.status(404).json({ error: 'Employee not found.' });
+  if (!status) return res.status(400).json({ error: 'Invalid employee status.' });
+  db.prepare('UPDATE users SET work_status = ? WHERE id = ?').run(status, employee.id);
+  res.json({ user: publicUser(userById(employee.id)) });
+});
 
 app.post('/api/attendance/check-in', requireAuth, (req, res) => {
   const date = new Date().toISOString().slice(0, 10);
@@ -119,6 +130,7 @@ app.post('/api/attendance/check-in', requireAuth, (req, res) => {
   if (existing && existing.check_in) return res.status(409).json({ error: 'Already checked in today.' });
   if (existing) db.prepare('UPDATE attendance SET check_in = ?, status = \'present\' WHERE id = ?').run(time, existing.id);
   else db.prepare('INSERT INTO attendance (id, user_id, date, check_in, status) VALUES (?, ?, ?, ?, \'present\')').run(id('att'), req.session.userId, date, time);
+  db.prepare("UPDATE users SET work_status = 'present' WHERE id = ?").run(req.session.userId);
   res.json({ ok: true });
 });
 app.post('/api/attendance/check-out', requireAuth, (req, res) => {
