@@ -221,6 +221,23 @@
   }
 
   .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .employee-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;}
+  .employee-card{position:relative;cursor:pointer;transition:border-color .15s,transform .15s;}
+  .employee-card:hover{border-color:var(--indigo);transform:translateY(-2px);}
+  .employee-card-top{display:flex;align-items:center;gap:12px;margin-bottom:15px;}
+  .employee-avatar{width:42px;height:42px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;flex-shrink:0;overflow:hidden;}
+  .employee-avatar img{width:100%;height:100%;object-fit:cover;}
+  .status-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;}
+  .status-dot.present{background:var(--sage);}.status-dot.on-leave{background:var(--indigo);}.status-dot.absent{background:var(--amber);}
+  .employee-status{position:absolute;top:14px;right:14px;font-size:11px;color:var(--ink-soft);text-transform:capitalize;}
+  .employee-search{max-width:280px;}
+  .status-select{margin-top:12px;width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:11.5px;color:var(--ink);}
+  .profile-menu-wrap{position:relative;}
+  .avatar-button{border:0;padding:0;background:transparent;}
+  .profile-menu{display:none;position:absolute;left:0;bottom:40px;width:150px;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px;box-shadow:0 8px 20px rgba(0,0,0,.18);z-index:10;}
+  .profile-menu.open{display:block;}
+  .profile-menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:9px 10px;border-radius:5px;font-size:12px;}
+  .profile-menu button:hover{background:var(--paper-dim);}
   .stat-card .num{font-family:var(--font-display);font-size:30px;font-weight:700;}
   .stat-card .lab{font-size:12px;color:var(--ink-soft);margin-top:2px;}
   .quick-card{cursor:pointer;transition:border-color .15s;}
@@ -328,7 +345,7 @@
       <div id="nav-items"></div>
       <div class="sidebar-bottom">
         <div class="user-chip">
-          <div class="avatar" id="sb-avatar">A</div>
+          <div class="profile-menu-wrap"><button class="avatar-button" onclick="toggleProfileMenu(event)" aria-label="Open profile menu"><div class="avatar" id="sb-avatar">A</div></button><div class="profile-menu" id="profile-menu"><button onclick="goTo('profile');closeProfileMenu();">My Profile</button><button onclick="logout()">Log out</button></div></div>
           <div><div class="name" id="sb-name">—</div><div class="role" id="sb-role">—</div></div>
         </div>
         <button class="logout-btn" onclick="logout()">Log out</button>
@@ -350,7 +367,7 @@
 const WORK_START = 9, WORK_END = 18;
 let db = null;
 let session = { user: null };
-let ui = { view: 'dashboard', authTab: 'signin', pickedRole: 'employee', adminEmpFilter: null, editingProfile: false, creatingEmployee: false, createdCredentials: null };
+let ui = { view: 'dashboard', authTab: 'signin', pickedRole: 'employee', adminEmpFilter: null, selectedEmployee: null, employeeSearch: '', editingProfile: false, creatingEmployee: false, createdCredentials: null, attDate: null };
 
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function fmtDate(d){ return new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
@@ -435,7 +452,7 @@ async function logout(){
   document.getElementById('si-password').value='';
 }
 function enterApp(){
-  ui.view = 'dashboard';
+  ui.view = session.user.role === 'admin' ? 'employees' : 'dashboard';
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
   renderSidebar();
@@ -448,6 +465,7 @@ const NAV_EMPLOYEE = [
   {id:'attendance', label:'Attendance', ic:'02'},
   {id:'leave', label:'Leave requests', ic:'03'},
   {id:'profile', label:'Profile', ic:'04'},
+  {id:'employees', label:'Team directory', ic:'05'},
 ];
 const NAV_ADMIN = [
   {id:'dashboard', label:'Dashboard', ic:'01'},
@@ -469,9 +487,15 @@ function renderSidebar(){
       <span class="ic">${it.ic}</span>${it.label}
     </button>`).join('');
 }
+function toggleProfileMenu(event){
+  event.stopPropagation();
+  document.getElementById('profile-menu').classList.toggle('open');
+}
+function closeProfileMenu(){ document.getElementById('profile-menu').classList.remove('open'); }
 function goTo(view){
   ui.view = view;
   ui.editingProfile = false;
+  closeProfileMenu();
   renderSidebar();
   renderMain();
 }
@@ -510,6 +534,13 @@ function last7Days(){
   for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); }
   return days;
 }
+// parse time string "HH:MM" to minutes since midnight, null if invalid
+function minutesFromTime(t){ if(!t) return null; const parts = String(t).split(':').map(Number); if(parts.length<2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) return null; return parts[0]*60 + parts[1]; }
+// format minutes as HH:MM (handles null -> '—')
+function minutesToHHMM(m){ if(m===null || m===undefined) return '—'; const sign = m<0?'-':''; m = Math.abs(Math.round(m)); const hh = Math.floor(m/60); const mm = m%60; return (sign + String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0')); }
+// shift the admin attendance date by days (amount may be negative)
+function shiftAttDate(amount){ const base = ui.attDate || todayStr(); const d = new Date(base+'T00:00:00'); d.setDate(d.getDate()+amount); ui.attDate = d.toISOString().slice(0,10); renderMain(); }
+function setAttDate(value){ ui.attDate = value; renderMain(); }
 
 /* ---------- MAIN RENDER DISPATCH ---------- */
 function renderMain(){
@@ -521,9 +552,10 @@ function renderMain(){
     else if(ui.view==='attendance') el.innerHTML = empAttendance();
     else if(ui.view==='leave') el.innerHTML = empLeave();
     else if(ui.view==='profile') el.innerHTML = empProfile();
+    else if(ui.view==='employees') el.innerHTML = employeeDirectory();
   } else {
     if(ui.view==='dashboard') el.innerHTML = adminDashboard();
-    else if(ui.view==='employees') el.innerHTML = adminEmployees();
+    else if(ui.view==='employees') el.innerHTML = ui.creatingEmployee || ui.adminEmpFilter ? adminEmployees() : employeeDirectory();
     else if(ui.view==='attendance') el.innerHTML = adminAttendance();
     else if(ui.view==='leave') el.innerHTML = adminLeave();
   }
@@ -828,6 +860,43 @@ function adminDashboard(){
 }
 
 /* ---------- ADMIN: EMPLOYEES ---------- */
+function setEmployeeStatus(id, status){
+  api('/api/employees/'+encodeURIComponent(id)+'/status',{method:'PATCH',body:JSON.stringify({status})})
+    .then(refreshApp).catch(e=>showToast(e.message));
+}
+function employeeProfile(employee){
+  return `<div class="page-head"><div><div class="eyebrow">Employee profile</div><h1>${employee.name}</h1></div><button class="btn" onclick="ui.selectedEmployee=null;renderMain();">Back to employees</button></div>
+    <div class="card profile-grid">
+      <div class="f"><div class="l">Employee ID</div><div class="v mono">${employee.employeeId}</div></div>
+      <div class="f"><div class="l">Department</div><div class="v">${employee.department}</div></div>
+      <div class="f"><div class="l">Email</div><div class="v">${employee.email}</div></div>
+      <div class="f"><div class="l">Phone</div><div class="v">${employee.phone || '—'}</div></div>
+      <div class="f" style="grid-column:1/3;"><div class="l">Address</div><div class="v">${employee.address || '—'}</div></div>
+    </div>`;
+}
+function employeeDirectory(){
+  const query = ui.employeeSearch.toLowerCase();
+  const employees = db.users.filter(employee => `${employee.name} ${employee.employeeId} ${employee.department}`.toLowerCase().includes(query));
+  if(ui.selectedEmployee){
+    const employee = db.users.find(item=>item.id===ui.selectedEmployee);
+    return employee ? employeeProfile(employee) : '';
+  }
+  const cards = employees.map(employee=>{
+    const status = employee.workStatus || 'absent';
+    const avatar = employee.companyLogo ? `<img src="${employee.companyLogo}" alt="">` : initials(employee.name);
+    return `<div class="card employee-card" onclick="ui.selectedEmployee='${employee.id}';renderMain();">
+      <div class="employee-card-top"><div class="employee-avatar">${avatar}</div><div><div style="font-weight:600;">${employee.name}</div><div style="font-size:12px;color:var(--ink-soft);">${employee.department}</div></div></div>
+      <div class="mono" style="font-size:11px;color:var(--ink-soft);">${employee.employeeId}</div>
+      <div class="employee-status"><span class="status-dot ${status}"></span>${status.replace('-', ' ')}</div>
+      ${session.user.role==='admin' ? `<select class="status-select" onchange="event.stopPropagation();setEmployeeStatus('${employee.id}',this.value)" onclick="event.stopPropagation()" aria-label="Set ${employee.name} status">
+        <option value="present" ${status==='present'?'selected':''}>Present</option><option value="on-leave" ${status==='on-leave'?'selected':''}>On leave</option><option value="absent" ${status==='absent'?'selected':''}>Absent</option>
+      </select>` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="page-head"><div><div class="eyebrow">Employees</div><h1>Team directory</h1></div><button class="btn btn-dark" onclick="ui.creatingEmployee=true;renderMain();">Create employee</button></div>
+    <div class="section"><input class="field employee-search" placeholder="Search employees" value="${ui.employeeSearch}" oninput="ui.employeeSearch=this.value;renderMain()"></div>
+    ${employees.length ? `<div class="employee-cards">${cards}</div>` : '<div class="empty">No employees match your search.</div>'}`;
+}
 async function saveEmployeeEdit(id){
   try{
     await api('/api/employees/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({department:document.getElementById('em-dept').value.trim(),phone:document.getElementById('em-phone').value.trim(),address:document.getElementById('em-address').value.trim(),salary:document.getElementById('em-salary').value.trim()})});
@@ -893,17 +962,49 @@ function adminEmployees(){
 
 /* ---------- ADMIN: ATTENDANCE ---------- */
 function adminAttendance(){
-  const employees = db.users.filter(u=>u.role==='employee');
+  const employeesAll = db.users.filter(u=>u.role==='employee');
+  const date = ui.attDate || todayStr();
+  const search = (document.getElementById('admin-att-search') ? document.getElementById('admin-att-search').value.trim().toLowerCase() : '');
+  const employees = employeesAll.filter(e=>!search || e.name.toLowerCase().includes(search));
+
   const rows = employees.map(e=>{
-    const rec = todayAttendanceFor(e.id);
+    const rec = db.attendance.find(a=>a.userId===e.id && a.date===date);
     const status = rec ? rec.status : 'absent';
-    return `<tr><td><b>${e.name}</b></td><td class="mono">${rec?fmtTime(rec.checkIn):'—'}</td><td class="mono">${rec?fmtTime(rec.checkOut):'—'}</td><td><span class="badge ${status}">${status}</span></td></tr>`;
+    const checkIn = rec ? rec.checkIn : null;
+    const checkOut = rec ? rec.checkOut : null;
+    let workMins = null;
+    if(checkIn && checkOut){ const ci = minutesFromTime(checkIn); const co = minutesFromTime(checkOut); if(ci!==null && co!==null) workMins = Math.max(0, co - ci); }
+    const extraMins = workMins!==null ? Math.max(0, workMins - (8*60)) : null;
+    return `<tr>
+      <td><b>${e.name}</b></td>
+      <td class="mono">${checkIn?fmtTime(checkIn):'—'}</td>
+      <td class="mono">${checkOut?fmtTime(checkOut):'—'}</td>
+      <td class="mono">${workMins!==null?minutesToHHMM(workMins):'—'}</td>
+      <td class="mono">${extraMins!==null?minutesToHHMM(extraMins):'—'}</td>
+      <td><span class="badge ${status}">${status}</span></td>
+    </tr>`;
   }).join('');
+
+  const formattedDate = new Date(date+'T00:00:00').toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'});
   return `
-    <div class="page-head"><div><div class="eyebrow">Attendance</div><h1>Today across the team</h1></div><div class="today mono">${new Date().toDateString()}</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;">
+      <div>
+        <div class="eyebrow">Attendance</div>
+        <h1 style="margin:0;padding:0;font-size:20px;">${formattedDate}</h1>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="btn" onclick="shiftAttDate(-1)">&lsaquo;</button>
+          <button class="btn" onclick="shiftAttDate(1)">&rsaquo;</button>
+        </div>
+        <div>
+          <input id="admin-att-search" placeholder="Search employees" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;min-width:220px;" oninput="renderMain()">
+        </div>
+      </div>
+    </div>
     ${railCardHTML('Workday rail')}
     <div class="section">
-      ${employees.length ? `<table><thead><tr><th>Employee</th><th>Check in</th><th>Check out</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No employees yet.</div>`}
+      ${employees.length ? `<table><thead><tr><th>Employee</th><th>Check In</th><th>Check Out</th><th>Work Hours</th><th>Extra hours</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No employees matching this search.</div>`}
     </div>
   `;
 }
