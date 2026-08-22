@@ -17,7 +17,7 @@ Open http://localhost:3000. The SQLite database is created at `data/dayflow.db` 
 
 1. Open http://localhost:3000 and sign in with a demo account.
 2. Browse the Employees view and open an employee profile.
-3. Open Attendance to review daily records.
+3. Open Attendance to review daily records..
 4. Open Leave and approve or reject a pending request.
 6. Use Sign Up to create a SQL-backed employee login.
 
