@@ -286,6 +286,28 @@
   .switch-emp{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
   .chip-btn{padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:12.5px;}
   .chip-btn.sel{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  .leave-zone{max-width:1100px;}
+  .leave-toolbar{display:flex;align-items:center;justify-content:center;gap:14px;margin:16px 0 18px;}
+  .leave-search{width:min(100%,420px);padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:#fff;font:13px var(--font-body);color:var(--ink);}
+  .leave-search:focus{outline:2px solid var(--indigo);outline-offset:1px;border-color:var(--indigo);}
+  .leave-counts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px;}
+  .leave-count{padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:#fff;}
+  .leave-count .label{font-size:12px;color:var(--ink-soft);margin-bottom:6px;}
+  .leave-count .value{font:700 25px var(--font-display);}
+  .leave-count.paid .value{color:var(--indigo);}
+  .leave-count.sick .value{color:var(--brick);}
+  .leave-count .employee-label{font-size:10.5px;color:var(--ink-soft);margin-top:4px;}
+  .leave-name{cursor:pointer;color:var(--ink);}
+  .leave-name:hover{color:var(--indigo);text-decoration:underline;}
+  .leave-zone-title{display:flex;align-items:center;gap:12px;margin-top:4px;padding:10px 14px;border-left:5px solid var(--brick);background:var(--brick-soft);color:var(--brick);font:600 13px var(--font-display);text-transform:uppercase;letter-spacing:.06em;}
+  .leave-table td{vertical-align:middle;}
+  .leave-detail-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;}
+  @media(max-width:700px){
+    .leave-toolbar{align-items:stretch;flex-direction:column;}
+    .leave-search{max-width:none;width:100%;}
+    .leave-table{display:block;overflow-x:auto;white-space:nowrap;}
+    .leave-detail-actions{justify-content:flex-start;}
+  }
 </style>
 </head>
 <body>
@@ -367,7 +389,7 @@
 const WORK_START = 9, WORK_END = 18;
 let db = null;
 let session = { user: null };
-let ui = { view: 'dashboard', authTab: 'signin', pickedRole: 'employee', adminEmpFilter: null, selectedEmployee: null, employeeSearch: '', editingProfile: false, creatingEmployee: false, createdCredentials: null };
+let ui = { view: 'dashboard', authTab: 'signin', pickedRole: 'employee', adminEmpFilter: null, selectedEmployee: null, selectedLeaveEmployee: null, employeeSearch: '', leaveSearch: '', expandedLeave: null, editingProfile: false, creatingEmployee: false, createdCredentials: null };
 
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function fmtDate(d){ return new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
@@ -529,6 +551,17 @@ function railCardHTML(subtitle){
 function userAttendance(userId){ return db.attendance.filter(a=>a.userId===userId).sort((a,b)=>b.date.localeCompare(a.date)); }
 function userLeave(userId){ return db.leave.filter(l=>l.userId===userId).sort((a,b)=>b.createdAt-a.createdAt); }
 function todayAttendanceFor(userId){ return db.attendance.find(a=>a.userId===userId && a.date===todayStr()); }
+function leaveDays(leave){ return Math.round((new Date(leave.endDate+'T00:00:00')-new Date(leave.startDate+'T00:00:00'))/86400000)+1; }
+function employeeLeaveBalance(userId, type){
+  const allowance = type==='Paid' ? 24 : 7;
+  const used = db.leave.filter(l=>l.userId===userId && l.type===type && l.status==='approved').reduce((sum,l)=>sum + leaveDays(l),0);
+  return Math.max(0, allowance-used);
+}
+function latestApprovedLeave(userId){
+  return db.leave.filter(l=>l.userId===userId && l.status==='approved').sort((a,b)=>b.createdAt-a.createdAt)[0] || null;
+}
+function selectLeaveEmployee(id){ ui.selectedLeaveEmployee = id; renderMain(); }
+function toggleLeaveRow(id){ ui.expandedLeave = ui.expandedLeave===id ? null : id; renderMain(); }
 function last7Days(){
   const days=[];
   for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); }
@@ -980,27 +1013,29 @@ async function decideLeave(id, decision){
   }catch(e){ showToast(e.message); }
 }
 function adminLeave(){
-  const requests = [...db.leave].sort((a,b)=>b.createdAt-a.createdAt);
+  const query = ui.leaveSearch.trim().toLowerCase();
+  const allRequests = [...db.leave].sort((a,b)=>b.createdAt-a.createdAt);
+  const requests = allRequests.filter(l=>{
+    const emp = db.users.find(u=>u.id===l.userId);
+    return `${emp?emp.name:''} ${l.type} ${l.startDate} ${l.endDate} ${l.status}`.toLowerCase().includes(query);
+  });
+  const selectedEmployee = db.users.find(u=>u.id===ui.selectedLeaveEmployee) || null;
+  const paidDays = selectedEmployee ? employeeLeaveBalance(selectedEmployee.id,'Paid') : null;
+  const sickDays = selectedEmployee ? employeeLeaveBalance(selectedEmployee.id,'Sick') : null;
   const rows = requests.map(l=>{
     const emp = db.users.find(u=>u.id===l.userId);
     return `<tr>
-      <td><b>${emp?emp.name:'—'}</b></td>
-      <td>${l.type}</td>
-      <td class="mono">${fmtDate(l.startDate)}${l.startDate!==l.endDate?' – '+fmtDate(l.endDate):''}</td>
-      <td style="max-width:180px;">${l.remarks||'—'}</td>
-      <td><span class="badge ${l.status}">${l.status}</span></td>
-      <td>${l.status==='pending' ? `
-          <div style="display:flex;gap:6px;align-items:center;">
-            <input class="comment-input" id="cm-${l.id}" placeholder="Comment (optional)">
-            <button class="btn btn-approve btn-sm" onclick="decideLeave('${l.id}','approved')">Approve</button>
-            <button class="btn btn-reject btn-sm" onclick="decideLeave('${l.id}','rejected')">Reject</button>
-          </div>` : `<span style="font-size:12px;color:var(--ink-soft);">${l.comment||'—'}</span>`}
-      </td>
+      <td class="leave-name" onclick="selectLeaveEmployee('${l.userId}')"><b>${emp?emp.name:'—'}</b><div style="font-size:10.5px;color:var(--ink-soft);margin-top:4px;">Paid ${employeeLeaveBalance(l.userId,'Paid')}d · Sick ${employeeLeaveBalance(l.userId,'Sick')}d</div></td><td class="mono">${fmtDate(l.startDate)}</td><td class="mono">${fmtDate(l.endDate)}</td><td>${l.type}</td><td>${(() => { const approved = latestApprovedLeave(l.userId); return approved ? `<b style="color:var(--indigo);">${approved.type} leave</b><div style="font-size:10.5px;color:var(--ink-soft);margin-top:3px;">${fmtDate(approved.startDate)}</div>` : '<span style="color:var(--ink-soft);">None yet</span>'; })()}</td><td><span class="badge ${l.status}">${l.status}</span></td><td>${l.status==='pending' ? `<div class="leave-detail-actions"><button class="btn btn-approve btn-sm" onclick="decideLeave('${l.id}','approved')">Approve</button><button class="btn btn-reject btn-sm" onclick="decideLeave('${l.id}','rejected')">Reject</button></div>` : `<span style="font-size:12px;color:var(--ink-soft);">${l.comment||'Decided'}</span>`}</td>
     </tr>`;
   }).join('');
   return `
-    <div class="page-head"><div><div class="eyebrow">Leave &amp; time-off</div><h1>Leave approvals</h1></div></div>
-    ${requests.length ? `<table><thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Remarks</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No leave requests yet.</div>`}
+    <div class="page-head"><div><div class="eyebrow">Leave request zone</div><h1>Leave approvals</h1></div><div class="today mono">${allRequests.length} total request${allRequests.length!==1?'s':''}</div></div>
+    <div class="leave-zone">
+      <div class="leave-zone-title">Time off <span style="font:400 11px var(--font-body);text-transform:none;letter-spacing:0;color:var(--ink-soft);">HR admin controls</span></div>
+      <div class="leave-toolbar"><input class="leave-search" placeholder="Search by employee, type, date or status" value="${ui.leaveSearch}" oninput="ui.leaveSearch=this.value;renderMain()" aria-label="Search leave requests"></div>
+      <div class="leave-counts"><div class="leave-count paid"><div class="label">Paid leave</div><div class="value">${paidDays === null ? '—' : paidDays} <span style="font:500 12px var(--font-body);color:var(--ink-soft);">days remaining</span></div><div class="employee-label">${selectedEmployee ? selectedEmployee.name : 'Click an employee name below'}</div></div><div class="leave-count sick"><div class="label">Sick leave</div><div class="value">${sickDays === null ? '—' : sickDays} <span style="font:500 12px var(--font-body);color:var(--ink-soft);">days remaining</span></div><div class="employee-label">${selectedEmployee ? selectedEmployee.name : 'Click an employee name below'}</div></div></div>
+      ${requests.length ? `<table class="leave-table"><thead><tr><th>Name</th><th>Start date</th><th>End date</th><th>Time off type</th><th>Last approved leave</th><th>Status</th><th>HR controls</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">${allRequests.length?'No leave requests match your search.':'No leave requests yet.'}</div>`}
+    </div>
   `;
 }
 
