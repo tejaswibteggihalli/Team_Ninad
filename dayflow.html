@@ -632,34 +632,80 @@ async function checkOut(){
 }
 function empAttendance(){
   const u = session.user;
-  const today = todayAttendanceFor(u.id);
-  const days = last7Days();
-  const rows = days.map(d=>{
-    const rec = db.attendance.find(a=>a.userId===u.id && a.date===d);
-    const status = rec ? rec.status : 'absent';
-    return `<tr><td>${fmtDate(d)}${d===todayStr()?' <span style="color:var(--ink-soft);font-size:11px;">(today)</span>':''}</td><td class="mono">${rec?fmtTime(rec.checkIn):'—'}</td><td class="mono">${rec?fmtTime(rec.checkOut):'—'}</td><td><span class="badge ${status}">${status}</span></td></tr>`;
-  }).join('');
+  const date = ui.attDate || todayStr();
+  const monthDate = new Date(date + 'T00:00:00');
+  const monthRecords = userAttendance(u.id).filter(a => {
+    const d = new Date(a.date + 'T00:00:00');
+    return d.getFullYear() === monthDate.getFullYear() && d.getMonth() === monthDate.getMonth();
+  }).sort((a,b) => a.date.localeCompare(b.date));
+
+  const monthWorkDays = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+  const presentDays = monthRecords.filter(a => a.checkIn).length;
+  const leaveDays = userLeave(u.id).filter(l => {
+    const start = new Date(l.startDate + 'T00:00:00');
+    const end = new Date(l.endDate + 'T00:00:00');
+    if (l.status !== 'approved') return false;
+    return start.getFullYear() === monthDate.getFullYear() && start.getMonth() === monthDate.getMonth() || end.getFullYear() === monthDate.getFullYear() && end.getMonth() === monthDate.getMonth();
+  }).length;
+
+  const rows = monthRecords.length ? monthRecords.map(rec => {
+    const workMinutes = rec.checkIn && rec.checkOut ? Math.max(0, minutesFromTime(rec.checkOut) - minutesFromTime(rec.checkIn)) : null;
+    const extraMinutes = workMinutes !== null ? Math.max(0, workMinutes - 8*60) : null;
+    return `<tr>
+      <td>${fmtDate(rec.date)}</td>
+      <td class="mono">${rec.checkIn || '—'}</td>
+      <td class="mono">${rec.checkOut || '—'}</td>
+      <td class="mono">${workMinutes !== null ? minutesToHHMM(workMinutes) : '—'}</td>
+      <td class="mono">${extraMinutes !== null ? minutesToHHMM(extraMinutes) : '—'}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:20px 10px;">No attendance for this month.</td></tr>`;
+
   return `
-    <div class="page-head">
-      <div><div class="eyebrow">Attendance</div><h1>Your attendance</h1></div>
-      <div class="today mono">${new Date().toDateString()}</div>
-    </div>
-    ${railCardHTML("Today's rail")}
-    <div class="section">
-      <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-weight:600;font-size:14px;">${today ? (today.checkOut ? 'Day complete' : 'Checked in at '+today.checkIn) : 'Not checked in yet'}</div>
-          <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">${today && today.checkOut ? 'Checked out at '+today.checkOut : 'Tap in when you start your workday.'}</div>
+    <div style="font-family:var(--font-display);font-size:25px;font-style:italic;margin:0 0 18px;text-align:center;letter-spacing:0.02em;">For Employees</div>
+    <div style="border:2px solid #222;border-radius:0;background:#f5f1ea;box-shadow:none;overflow:hidden;max-width:1100px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0;border-bottom:2px solid #222;min-height:54px;">
+        <div style="display:flex;flex:1;"> 
+          <button type="button" style="background:transparent;border:none;border-right:1.5px solid #222;padding:0 18px;min-width:90px;font-family:var(--font-display);font-size:14px;cursor:pointer;">Company Logo</button>
+          <button type="button" style="background:transparent;border:none;border-right:1.5px solid #222;padding:0 22px;min-width:90px;font-family:var(--font-display);font-size:14px;cursor:pointer;">Employees</button>
+          <button type="button" style="background:rgba(174,214,244,0.8);border:none;border-right:1.5px solid #222;padding:0 22px;min-width:90px;font-family:var(--font-display);font-size:14px;cursor:pointer;">Attendance</button>
+          <button type="button" style="background:transparent;border:none;padding:0 22px;min-width:90px;font-family:var(--font-display);font-size:14px;cursor:pointer;">Time Off</button>
         </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn ${today && today.checkIn ? '' : 'btn-dark'}" ${today && today.checkIn ? 'disabled style="opacity:.4;"' : ''} onclick="checkIn()">Check in</button>
-          <button class="btn ${today && today.checkIn && !today.checkOut ? 'btn-dark' : ''}" ${!today || !today.checkIn || today.checkOut ? 'disabled style="opacity:.4;"' : ''} onclick="checkOut()">Check out</button>
+        <div style="width:34px;height:34px;border-radius:50%;background:#e74b3b;border:2px solid #222;margin-right:12px;"></div>
+      </div>
+
+      <div style="padding:18px 18px 0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;border:1.5px solid #222;background:#f0efe9;padding:12px 16px;font-family:var(--font-display);font-size:20px;">
+          <span>Attendance</span>
+        </div>
+
+        <div style="display:flex;align-items:stretch;border-left:1.5px solid #222;border-right:1.5px solid #222;border-bottom:1.5px solid #222;">
+          <button type="button" class="btn" onclick="shiftAttDate(-1)" style="border:none;border-right:1.5px solid #222;background:transparent;padding:10px 16px;min-width:54px;">&lsaquo;</button>
+          <button type="button" class="btn" onclick="shiftAttDate(1)" style="border:none;border-right:1.5px solid #222;background:transparent;padding:10px 16px;min-width:54px;">&rsaquo;</button>
+          <button type="button" style="background:transparent;border:none;border-right:1.5px solid #222;padding:10px 16px;min-width:80px;font-family:var(--font-display);font-size:18px;">Oct v</button>
+          <div style="display:flex;align-items:center;justify-content:center;flex:1;border-right:1.5px solid #222;padding:10px 16px;font-family:var(--font-display);font-size:17px;background:rgba(255,255,255,0.1);">Count of days present</div>
+          <div style="display:flex;align-items:center;justify-content:center;flex:1;border-right:1.5px solid #222;padding:10px 16px;font-family:var(--font-display);font-size:17px;background:rgba(255,255,255,0.1);">Leaves count</div>
+          <div style="display:flex;align-items:center;justify-content:center;flex:1;padding:10px 16px;font-family:var(--font-display);font-size:17px;background:rgba(255,255,255,0.1);">Total working days</div>
+        </div>
+
+        <div style="padding:10px 0 0;">
+          <div style="text-align:center;font-family:var(--font-display);font-size:28px;padding:10px 0 8px;">${monthDate.toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'})}</div>
         </div>
       </div>
-    </div>
-    <div class="section">
-      <div class="section-head"><h2>Last 7 days</h2></div>
-      <table><thead><tr><th>Date</th><th>Check in</th><th>Check out</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+
+      <div style="padding:0 18px 18px;">
+        <table style="width:100%;border-collapse:collapse;border:1.5px solid #222;background:#f8f7f4;">
+          <thead>
+            <tr>
+              <th style="padding:10px 12px;border:1.5px solid #222;text-align:left;font-family:var(--font-display);font-size:16px;font-weight:400;">Date</th>
+              <th style="padding:10px 12px;border:1.5px solid #222;text-align:left;font-family:var(--font-display);font-size:16px;font-weight:400;">Check In</th>
+              <th style="padding:10px 12px;border:1.5px solid #222;text-align:left;font-family:var(--font-display);font-size:16px;font-weight:400;">Check Out</th>
+              <th style="padding:10px 12px;border:1.5px solid #222;text-align:left;font-family:var(--font-display);font-size:16px;font-weight:400;">Work Hours</th>
+              <th style="padding:10px 12px;border:1.5px solid #222;text-align:left;font-family:var(--font-display);font-size:16px;font-weight:400;">Extra hours</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
     </div>
   `;
 }
