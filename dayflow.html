@@ -156,7 +156,18 @@
   .nav-item:hover{background:#2A2E3A;}
   .nav-item.active{background:var(--amber);color:var(--ink);}
   .nav-item.active .ic{color:var(--ink);}
-  .sidebar-bottom{margin-top:auto;padding-top:16px;border-top:1px solid #33374A;}
+  .top-nav{display:flex;gap:4px;background:var(--paper-dim);padding:4px;border-radius:10px;margin-bottom:28px;width:fit-content;}
+  .top-tab{flex:none;padding:9px 16px;border-radius:7px;border:none;background:transparent;font-size:13.5px;font-weight:500;color:var(--ink-soft);cursor:pointer;font-family:var(--font-body);}
+  .top-tab.active{background:var(--ink);color:var(--paper);}
+  .top-tab:hover{color:var(--ink);}
+  .top-tab.active:hover{color:var(--paper);}
+  .app-topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:28px;}
+  .app-topbar .top-nav{margin-bottom:0;}
+  .app-profile{position:relative;flex-shrink:0;}
+  .app-profile .profile-menu{left:auto;right:0;bottom:auto;top:42px;}
+  .app-profile .user-chip{padding:0;}
+  .app-profile .user-chip .name,.app-profile .user-chip .role{display:none;}
+  .sidebar-bottom{display:none;}
   .user-chip{display:flex;align-items:center;gap:9px;padding:8px;}
   .avatar{width:30px;height:30px;border-radius:50%;background:var(--amber);color:var(--ink);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:13px;flex-shrink:0;}
   .user-chip .name{font-size:12.5px;font-weight:600;}
@@ -232,6 +243,18 @@
   .employee-status{position:absolute;top:14px;right:14px;font-size:11px;color:var(--ink-soft);text-transform:capitalize;}
   .employee-search{max-width:280px;}
   .status-select{margin-top:12px;width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:11.5px;color:var(--ink);}
+  .attendance-panel{display:flex;align-items:center;justify-content:space-between;gap:20px;background:var(--ink);color:var(--paper);border-radius:12px;padding:18px 20px;margin-top:22px;}
+  .attendance-panel .attendance-label{font-family:var(--font-mono);font-size:10.5px;color:#9DA0B0;text-transform:uppercase;letter-spacing:.06em;}
+  .attendance-panel .attendance-time{font-size:13px;font-weight:600;margin-top:5px;}
+  .attendance-actions{display:flex;gap:8px;}
+  .attendance-actions .btn{min-width:92px;}
+  .attendance-actions .btn:disabled{cursor:not-allowed;opacity:.4;}
+  .profile-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto;}
+  .profile-tab{border:1px solid var(--line);border-bottom:0;background:var(--paper-dim);padding:8px 13px;border-radius:7px 7px 0 0;font-size:12px;white-space:nowrap;color:var(--ink-soft);}
+  .profile-tab.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  .profile-hero{display:flex;align-items:center;gap:14px;margin-bottom:20px;}
+  .profile-large-avatar{width:58px;height:58px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:18px;font-weight:700;overflow:hidden;}
+  .profile-large-avatar img{width:100%;height:100%;object-fit:cover;}
   .profile-menu-wrap{position:relative;}
   .avatar-button{border:0;padding:0;background:transparent;}
   .profile-menu{display:none;position:absolute;left:0;bottom:40px;width:150px;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px;box-shadow:0 8px 20px rgba(0,0,0,.18);z-index:10;}
@@ -341,6 +364,7 @@
   @media(max-width:700px){.year-calendar{grid-template-columns:repeat(2,minmax(0,1fr));padding:9px;gap:8px;}}
   @media(max-width:440px){.year-calendar{grid-template-columns:1fr;}}
 </style>
+<base target="_blank">
 </head>
 <body>
 
@@ -396,16 +420,20 @@
       <img class="company-logo" id="sb-company-logo" alt="Company logo" style="display:none;">
       <div class="wordmark">Dayflow<span style="color:var(--amber);">.</span></div>
       <div class="tagline">Every workday, aligned.</div>
-      <div id="nav-items"></div>
-      <div class="sidebar-bottom">
-        <div class="user-chip">
-          <div class="profile-menu-wrap"><button class="avatar-button" onclick="toggleProfileMenu(event)" aria-label="Open profile menu"><div class="avatar" id="sb-avatar">A</div></button><div class="profile-menu" id="profile-menu"><button onclick="goTo('profile');closeProfileMenu();">My Profile</button><button onclick="logout()">Log out</button></div></div>
-          <div><div class="name" id="sb-name">—</div><div class="role" id="sb-role">—</div></div>
-        </div>
-        <button class="logout-btn" onclick="logout()">Log out</button>
-      </div>
+      <!-- nav-items moved to top-nav -->
     </div>
-    <div class="main" id="main-content"></div>
+    <div class="main">
+      <div class="app-topbar">
+        <div class="top-nav" id="top-nav"></div>
+        <div class="app-profile">
+          <div class="user-chip">
+            <div class="profile-menu-wrap"><button class="avatar-button" onclick="toggleProfileMenu(event)" aria-label="Open profile menu"><div class="avatar" id="sb-avatar">A</div></button><div class="profile-menu" id="profile-menu"><button onclick="goTo('profile');closeProfileMenu();">My Profile</button><button onclick="logout()">Log out</button></div></div>
+            <div><div class="name" id="sb-name">—</div><div class="role" id="sb-role">—</div></div>
+          </div>
+        </div>
+      </div>
+      <div id="main-content"></div>
+    </div>
   </div>
 </div>
 
@@ -536,9 +564,10 @@ function renderSidebar(){
   document.getElementById('sb-name').textContent = u.name;
   document.getElementById('sb-role').textContent = u.role === 'admin' ? 'HR Admin' : 'Employee';
   const items = u.role==='admin' ? NAV_ADMIN : NAV_EMPLOYEE;
-  document.getElementById('nav-items').innerHTML = items.map(it=>`
-    <button class="nav-item ${ui.view===it.id?'active':''}" onclick="goTo('${it.id}')">
-      <span class="ic">${it.ic}</span>${it.label}
+  const topNav = document.getElementById('top-nav');
+  if(topNav) topNav.innerHTML = items.map(it=>`
+    <button class="top-tab ${ui.view===it.id?'active':''}" onclick="goTo('${it.id}')">
+      ${it.label}
     </button>`).join('');
 }
 function toggleProfileMenu(event){
@@ -548,6 +577,7 @@ function toggleProfileMenu(event){
 function closeProfileMenu(){ document.getElementById('profile-menu').classList.remove('open'); }
 function goTo(view){
   ui.view = view;
+  ui.profileTab = 'resume';
   ui.editingProfile = false;
   closeProfileMenu();
   renderSidebar();
@@ -890,6 +920,8 @@ function empProfile(){
       </div>
     </div>`;
   }
+  const tab = ui.profileTab || 'private';
+  const content = tab==='resume' ? '<div class="empty">No resume information has been added yet.</div>' : tab==='security' ? '<div class="empty">Security and bank details are managed by HR.</div>' : `<div class="profile-grid"><div class="f"><div class="l">Full name</div><div class="v">${u.name}</div></div><div class="f"><div class="l">Employee ID</div><div class="v mono">${u.employeeId}</div></div><div class="f"><div class="l">Email</div><div class="v">${u.email}</div></div><div class="f"><div class="l">Phone</div><div class="v">${u.phone || '—'}</div></div><div class="f" style="grid-column:1/3;"><div class="l">Address</div><div class="v">${u.address || '—'}</div></div><div class="f"><div class="l">Department</div><div class="v">${u.department}</div></div><div class="f"><div class="l">Joined</div><div class="v mono">${u.joinDate}</div></div></div>`;
   return `
     <div class="page-head">
       <div><div class="eyebrow">Profile</div><h1>Your profile</h1></div>
@@ -897,13 +929,7 @@ function empProfile(){
     </div>
     <div class="section">
       <div class="section-head"><h2>Personal details</h2></div>
-      <div class="card profile-grid">
-        <div class="f"><div class="l">Full name</div><div class="v">${u.name}</div></div>
-        <div class="f"><div class="l">Employee ID</div><div class="v mono">${u.employeeId}</div></div>
-        <div class="f"><div class="l">Email</div><div class="v">${u.email}</div></div>
-        <div class="f"><div class="l">Phone</div><div class="v">${u.phone || '—'}</div></div>
-        <div class="f" style="grid-column:1/3;"><div class="l">Address</div><div class="v">${u.address || '—'}</div></div>
-      </div>
+      <div class="card"><div class="profile-hero"><div class="profile-large-avatar">${initials(u.name)}</div><div><div style="font-weight:600;font-size:16px;">${u.name}</div><div style="font-size:12px;color:var(--ink-soft);">${u.department} · ${u.employeeId}</div></div></div><div class="profile-tabs"><button class="profile-tab ${tab==='resume'?'active':''}" onclick="ui.profileTab='resume';renderMain();">Resume</button><button class="profile-tab ${tab==='private'?'active':''}" onclick="ui.profileTab='private';renderMain();">Private Info</button><button class="profile-tab ${tab==='security'?'active':''}" onclick="ui.profileTab='security';renderMain();">Security</button></div>${content}</div>
     </div>
     <div class="section">
       <div class="section-head"><h2>Job details</h2></div>
@@ -956,22 +982,18 @@ function setEmployeeStatus(id, status){
     .then(refreshApp).catch(e=>showToast(e.message));
 }
 function employeeProfile(employee){
+  const tab = ui.profileTab || 'resume';
+  const tabs = ['resume','private'];
+  if(session.user.role==='admin') tabs.push('salary','security');
+  const content = tab==='salary' ? `<div class="profile-grid"><div class="f"><div class="l">Salary structure</div><div class="v">${employee.salary || '—'}</div></div><div class="f"><div class="l">Wage type</div><div class="v">Fixed wage</div></div><div class="f"><div class="l">Monthly wage</div><div class="v">${employee.salary || '—'}</div></div><div class="f"><div class="l">Components</div><div class="v">Configure salary components</div></div></div>` : tab==='security' ? `<div class="empty">Bank and security details are available only to authorized HR administrators.</div>` : tab==='private' ? `<div class="profile-grid"><div class="f"><div class="l">Email</div><div class="v">${employee.email}</div></div><div class="f"><div class="l">Phone</div><div class="v">${employee.phone || '—'}</div></div><div class="f" style="grid-column:1/3;"><div class="l">Address</div><div class="v">${employee.address || '—'}</div></div><div class="f"><div class="l">Date of joining</div><div class="v mono">${employee.joinDate}</div></div></div>` : `<div class="empty">No resume information has been added yet.</div>`;
   return `<div class="page-head"><div><div class="eyebrow">Employee profile</div><h1>${employee.name}</h1></div><button class="btn" onclick="ui.selectedEmployee=null;renderMain();">Back to employees</button></div>
-    <div class="card profile-grid">
-      <div class="f"><div class="l">Employee ID</div><div class="v mono">${employee.employeeId}</div></div>
-      <div class="f"><div class="l">Department</div><div class="v">${employee.department}</div></div>
-      <div class="f"><div class="l">Email</div><div class="v">${employee.email}</div></div>
-      <div class="f"><div class="l">Phone</div><div class="v">${employee.phone || '—'}</div></div>
-      <div class="f" style="grid-column:1/3;"><div class="l">Address</div><div class="v">${employee.address || '—'}</div></div>
-    </div>`;
+    <div class="card"><div class="profile-hero"><div class="profile-large-avatar">${employee.companyLogo ? `<img src="${employee.companyLogo}" alt="">` : initials(employee.name)}</div><div><div style="font-weight:600;font-size:16px;">${employee.name}</div><div style="font-size:12px;color:var(--ink-soft);">${employee.department} · ${employee.employeeId}</div></div></div>
+      <div class="profile-tabs">${tabs.map(item=>`<button class="profile-tab ${tab===item?'active':''}" onclick="ui.profileTab='${item}';renderMain();">${item==='private'?'Private Info':item==='salary'?'Salary Info':item==='security'?'Security':'Resume'}</button>`).join('')}</div>${content}</div>`;
 }
-function employeeDirectory(){
+function employeeCardsHTML(){
   const query = ui.employeeSearch.toLowerCase();
   const employees = db.users.filter(employee => `${employee.name} ${employee.employeeId} ${employee.department}`.toLowerCase().includes(query));
-  if(ui.selectedEmployee){
-    const employee = db.users.find(item=>item.id===ui.selectedEmployee);
-    return employee ? employeeProfile(employee) : '';
-  }
+  if(!employees.length) return '<div class="empty">No employees match your search.</div>';
   const cards = employees.map(employee=>{
     const status = employee.workStatus || 'absent';
     const avatar = employee.companyLogo ? `<img src="${employee.companyLogo}" alt="">` : initials(employee.name);
@@ -984,9 +1006,25 @@ function employeeDirectory(){
       </select>` : ''}
     </div>`;
   }).join('');
+  return `<div class="employee-cards">${cards}</div>`;
+}
+function updateEmployeeSearch(value){
+  ui.employeeSearch = value;
+  const results = document.getElementById('employee-results');
+  if(results) results.innerHTML = employeeCardsHTML();
+}
+function employeeDirectory(){
+  if(ui.selectedEmployee){
+    const employee = db.users.find(item=>item.id===ui.selectedEmployee);
+    return employee ? employeeProfile(employee) : '';
+  }
+  const today = todayAttendanceFor(session.user.id);
+  const checkedIn = Boolean(today && today.checkIn);
+  const checkedOut = Boolean(today && today.checkOut);
+  const attendancePanel = session.user.role === 'employee' ? `<div class="attendance-panel"><div><div class="attendance-label">Today's attendance</div><div class="attendance-time">${checkedOut ? 'Day complete · Checked out at '+today.checkOut : checkedIn ? 'Since '+today.checkIn : 'Not checked in yet'}</div></div><div class="attendance-actions"><button class="btn btn-dark" onclick="checkIn()" ${checkedIn?'disabled':''}>Check in</button><button class="btn btn-dark" onclick="checkOut()" ${!checkedIn || checkedOut?'disabled':''}>Check out</button></div></div>` : '';
   return `<div class="page-head"><div><div class="eyebrow">Employees</div><h1>Team directory</h1></div><button class="btn btn-dark" onclick="ui.creatingEmployee=true;renderMain();">Create employee</button></div>
-    <div class="section"><input class="field employee-search" placeholder="Search employees" value="${ui.employeeSearch}" oninput="ui.employeeSearch=this.value;renderMain()"></div>
-    ${employees.length ? `<div class="employee-cards">${cards}</div>` : '<div class="empty">No employees match your search.</div>'}`;
+    <div class="section"><input class="field employee-search" placeholder="Search employees" value="${ui.employeeSearch}" oninput="updateEmployeeSearch(this.value)"></div>
+    <div id="employee-results">${employeeCardsHTML()}</div>${attendancePanel}`;
 }
 async function saveEmployeeEdit(id){
   try{
