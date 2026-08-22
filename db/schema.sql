@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone TEXT NOT NULL DEFAULT '',
   address TEXT NOT NULL DEFAULT '',
   department TEXT NOT NULL DEFAULT 'Unassigned',
+  work_status TEXT NOT NULL DEFAULT 'absent' CHECK (work_status IN ('present', 'on-leave', 'absent')),
   salary TEXT NOT NULL DEFAULT '—',
   join_date TEXT NOT NULL,
   created_at INTEGER NOT NULL

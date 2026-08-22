@@ -12,6 +12,7 @@ const userColumns = db.prepare('PRAGMA table_info(users)').all().map(column => c
 if (!userColumns.includes('company_name')) db.exec("ALTER TABLE users ADD COLUMN company_name TEXT NOT NULL DEFAULT 'Dayflow'");
 if (!userColumns.includes('company_logo')) db.exec("ALTER TABLE users ADD COLUMN company_logo TEXT NOT NULL DEFAULT ''");
 if (!userColumns.includes('must_change_password')) db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0');
+if (!userColumns.includes('work_status')) db.exec("ALTER TABLE users ADD COLUMN work_status TEXT NOT NULL DEFAULT 'absent'");
 
 function id(prefix) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
