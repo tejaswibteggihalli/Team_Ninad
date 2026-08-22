@@ -24,7 +24,7 @@ function publicUser(user) {
 function userById(id) { return db.prepare('SELECT * FROM users WHERE id = ?').get(id); }
 function requireAuth(req, res, next) { if (!req.session.userId) return res.status(401).json({ error: 'Authentication required.' }); next(); }
 function requireAdmin(req, res, next) { const user = userById(req.session.userId); if (!user || user.role !== 'admin') return res.status(403).json({ error: 'HR admin access required.' }); next(); }
-function validDate(value) { return /^\\d{4}-\\d{2}-\\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)); }
+function validDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)); }
 function id(prefix) { return `${prefix}_${crypto.randomBytes(5).toString('hex')}`; }
 function mapAttendance(row) { return row && { id: row.id, userId: row.user_id, date: row.date, checkIn: row.check_in, checkOut: row.check_out, status: row.status }; }
 function mapLeave(row) { return { id: row.id, userId: row.user_id, type: row.type, startDate: row.start_date, endDate: row.end_date, remarks: row.remarks, status: row.status, comment: row.comment, createdAt: row.created_at }; }
