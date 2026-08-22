@@ -273,6 +273,34 @@
 
   .form-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px;max-width:460px;}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .year-calendar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;}
+  .year-month{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);}
+  .year-month h3{font-size:13px;margin:0;padding:9px 10px;background:var(--ink);color:var(--paper);font-weight:600;}
+  .month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:8px;text-align:center;}
+  .month-grid .dow{font:500 9px var(--font-mono);color:var(--ink-soft);padding:2px 0 5px;}
+  .month-day{border:0;background:transparent;font:11px var(--font-mono);padding:5px 1px;border-radius:4px;color:var(--ink);}
+  .month-day.empty{visibility:hidden;}
+  .month-day.today{background:var(--amber);font-weight:700;}
+  .month-day.leave-paid{background:var(--indigo-soft);color:var(--indigo);font-weight:600;}
+  .month-day.leave-sick{background:var(--brick-soft);color:var(--brick);font-weight:600;}
+  .month-day.leave-unpaid{background:var(--paper-dim);font-weight:600;}
+  .month-day.leave-approved{box-shadow:inset 0 0 0 2px var(--sage);}
+  .month-day.leave-pending{box-shadow:inset 0 0 0 2px var(--amber);}
+  .month-day.leave-rejected{box-shadow:inset 0 0 0 2px var(--brick);text-decoration:line-through;}
+  .month-day.gov-holiday{background:#DDF1EE;color:#19756D;font-weight:700;box-shadow:inset 0 0 0 1px #65B8AF;}
+  .year-calendar-layout{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:16px;align-items:start;}
+  .calendar-legend{display:flex;flex-direction:column;gap:10px;font-size:11.5px;color:var(--ink-soft);padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--paper);}
+  .calendar-legend span{display:flex;align-items:center;gap:5px;}
+  .calendar-swatch{width:10px;height:10px;border-radius:3px;display:inline-block;}
+  .month-day.selectable{cursor:pointer;}
+  .month-day.selectable:hover{outline:2px solid var(--indigo);outline-offset:1px;}
+  .leave-modal{display:none;position:fixed;inset:0;background:rgba(30,33,40,.55);z-index:40;align-items:center;justify-content:center;padding:20px;}
+  .leave-modal.open{display:flex;}
+  .leave-modal-card{width:min(100%,520px);max-height:90vh;overflow:auto;background:var(--paper);border-radius:12px;padding:24px;box-shadow:0 18px 50px rgba(0,0,0,.25);}
+  .leave-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+  .leave-modal-head h2{font-size:20px;margin:0;}
+  .leave-modal-close{border:0;background:transparent;font-size:24px;color:var(--ink-soft);padding:0 4px;}
+  .leave-modal-card .date-picker{margin-bottom:14px;}
 
   .comment-input{width:130px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:11.5px;font-family:var(--font-body);}
   .toast{position:fixed;bottom:22px;right:22px;background:var(--ink);color:var(--paper);padding:12px 18px;border-radius:9px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,0.2);opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;z-index:50;}
@@ -308,6 +336,10 @@
     .leave-table{display:block;overflow-x:auto;white-space:nowrap;}
     .leave-detail-actions{justify-content:flex-start;}
   }
+  @media(max-width:1000px){.year-calendar{grid-template-columns:repeat(3,minmax(0,1fr));}}
+  @media(max-width:800px){.year-calendar-layout{grid-template-columns:1fr;}.calendar-legend{flex-direction:row;flex-wrap:wrap;}}
+  @media(max-width:700px){.year-calendar{grid-template-columns:repeat(2,minmax(0,1fr));padding:9px;gap:8px;}}
+  @media(max-width:440px){.year-calendar{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -758,6 +790,42 @@ function renderLeaveCalendar(){
   }
   calendar.innerHTML = `<div class="calendar-head"><button type="button" class="calendar-nav" onclick="shiftCalendar(-1)" aria-label="Previous month">&lsaquo;</button><strong>${month.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</strong><button type="button" class="calendar-nav" onclick="shiftCalendar(1)" aria-label="Next month">&rsaquo;</button></div><div class="calendar-grid">${cells}</div>`;
 }
+function yearCalendarHTML(requests){
+  const year = new Date().getFullYear();
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const weekdays = ['S','M','T','W','T','F','S'];
+  const holidays = {
+    [`${year}-01-26`]: 'Republic Day', [`${year}-03-04`]: 'Holi', [`${year}-03-21`]: 'Id-ul-Fitr',
+    [`${year}-03-27`]: 'Ram Navami', [`${year}-04-03`]: 'Good Friday', [`${year}-05-01`]: 'Buddha Purnima',
+    [`${year}-05-27`]: 'Id-ul-Zuha (Bakrid)', [`${year}-06-26`]: 'Muharram', [`${year}-08-15`]: 'Independence Day',
+    [`${year}-08-26`]: 'Milad-un-Nabi', [`${year}-09-04`]: 'Janmashtami', [`${year}-10-02`]: 'Gandhi Jayanti',
+    [`${year}-10-20`]: 'Dussehra', [`${year}-11-08`]: 'Diwali', [`${year}-11-24`]: 'Guru Nanak Jayanti',
+    [`${year}-12-25`]: 'Christmas Day'
+  };
+  const months = monthNames.map((monthName, monthIndex)=>{
+    const firstDay = new Date(year,monthIndex,1).getDay();
+    const daysInMonth = new Date(year,monthIndex+1,0).getDate();
+    let cells = weekdays.map(day=>`<div class="dow">${day}</div>`).join('');
+    for(let blank=0;blank<firstDay;blank++) cells += '<div class="month-day empty">0</div>';
+    for(let day=1;day<=daysInMonth;day++){
+      const date = `${year}-${String(monthIndex+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const leave = requests.find(request=>date>=request.startDate && date<=request.endDate);
+      const holiday = holidays[date];
+      const leaveClasses = leave ? [`leave-${leave.type.toLowerCase()}`,`leave-${leave.status}`] : [];
+      const classes = ['month-day',date===todayStr()?'today':'',holiday?'gov-holiday':'',...leaveClasses].filter(Boolean).join(' ');
+      const labels = [holiday,leave && `${leave.type} leave ${leave.status}`].filter(Boolean).join(' · ');
+      cells += `<button type="button" class="${classes} selectable" title="${labels || date}" onclick="openLeaveRequest('${date}')">${day}</button>`;
+    }
+    return `<div class="year-month"><h3>${monthName} ${year}</h3><div class="month-grid">${cells}</div></div>`;
+  }).join('');
+  return `<div class="section"><div class="section-head"><h2>${year} leave calendar</h2></div><div class="year-calendar-layout"><div class="year-calendar">${months}</div><div class="calendar-legend"><strong>Legend</strong><span><i class="calendar-swatch" style="background:var(--indigo-soft);"></i>Paid leave</span><span><i class="calendar-swatch" style="background:var(--brick-soft);"></i>Sick leave</span><span><i class="calendar-swatch" style="background:var(--paper-dim);"></i>Unpaid leave</span><span><i class="calendar-swatch" style="background:var(--sage);"></i>Approved</span><span><i class="calendar-swatch" style="background:var(--amber);"></i>Pending</span><span><i class="calendar-swatch" style="background:var(--brick);"></i>Rejected</span><span><i class="calendar-swatch" style="background:#DDF1EE;"></i>India government holiday</span><span><i class="calendar-swatch" style="background:var(--amber);"></i>Today</span><small style="margin-top:4px;color:var(--ink-soft);">Select any day to request leave</small></div></div></div>`;
+}
+function openLeaveRequest(date){
+  document.getElementById('lv-start').value = date;
+  document.getElementById('lv-end').value = date;
+  document.getElementById('leave-request-modal').classList.add('open');
+}
+function closeLeaveRequest(){ document.getElementById('leave-request-modal').classList.remove('open'); }
 function empLeave(){
   const u = session.user;
   const requests = userLeave(u.id);
@@ -770,32 +838,26 @@ function empLeave(){
       <td style="font-size:12px;color:var(--ink-soft);">${l.comment || '—'}</td>
       <td>${l.status==='pending' ? `<button class="btn btn-sm" onclick="removeLeave('${l.id}')">Remove</button>` : '—'}</td>
     </tr>`).join('');
-  ui.calendarTarget = 'start';
-  ui.calendarMonth = calendarDate();
-  setTimeout(renderLeaveCalendar,0);
   return `
     <div class="page-head">
       <div><div class="eyebrow">Leave &amp; time-off</div><h1>Leave requests</h1></div>
     </div>
-    <div class="section">
-      <div class="section-head"><h2>New request</h2></div>
-      <div class="form-card">
-        <div class="field"><label>Leave type</label>
-          <select id="lv-type"><option>Paid</option><option>Sick</option><option>Unpaid</option></select>
-        </div>
-        <div class="row2">
-          <div class="field"><label>Start date</label><input id="lv-start" type="text" value="${todayStr()}" readonly onclick="openCalendar('start')" aria-label="Start date, open calendar"></div>
-          <div class="field"><label>End date</label><input id="lv-end" type="text" value="${todayStr()}" readonly onclick="openCalendar('end')" aria-label="End date, open calendar"></div>
-        </div>
-        <div class="date-picker" id="leave-calendar" aria-label="Leave date calendar"></div>
-        <div class="field"><label>Remarks</label><textarea id="lv-remarks" rows="3" placeholder="Add context for HR (optional)"></textarea></div>
-        <button class="btn-primary" onclick="submitLeave()">Submit request</button>
-        <div class="err" id="lv-err"></div>
-      </div>
-    </div>
+    ${yearCalendarHTML(requests)}
     <div class="section">
       <div class="section-head"><h2>Your requests</h2></div>
       ${requests.length ? `<table><thead><tr><th>Type</th><th>Dates</th><th>Remarks</th><th>Status</th><th>HR comment</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No leave requests yet.</div>`}
+    </div>
+    <div class="leave-modal" id="leave-request-modal" role="dialog" aria-modal="true" aria-labelledby="leave-modal-title">
+      <div class="leave-modal-card">
+        <div class="leave-modal-head"><h2 id="leave-modal-title">Time off type request</h2><button class="leave-modal-close" onclick="closeLeaveRequest()" aria-label="Close">&times;</button></div>
+        <div class="field"><label>Employee</label><input value="${u.name}" readonly></div>
+        <div class="field"><label>Time off type</label><select id="lv-type"><option>Paid</option><option>Sick</option><option>Unpaid</option></select></div>
+        <div class="row2"><div class="field"><label>Validity start</label><input id="lv-start" type="date" value="${todayStr()}"></div><div class="field"><label>Validity end</label><input id="lv-end" type="date" value="${todayStr()}"></div></div>
+        <div class="field"><label>Allocation</label><input value="Selected day" readonly></div>
+        <div class="field"><label>Attachment</label><input id="lv-attachment" type="file" accept="image/*,.pdf"><div class="logo-hint">For sick leave certificate, if required.</div></div>
+        <div class="field"><label>Remarks</label><textarea id="lv-remarks" rows="3" placeholder="Add context for HR (optional)"></textarea></div>
+        <div style="display:flex;gap:8px;align-items:center;"><button class="btn-primary" style="width:auto;padding:9px 20px;" onclick="submitLeave()">Submit</button><button class="btn" onclick="closeLeaveRequest()">Discard</button></div><div class="err" id="lv-err"></div>
+      </div>
     </div>
   `;
 }
