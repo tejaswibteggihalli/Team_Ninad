@@ -93,6 +93,13 @@
     padding:40px;
   }
   .auth-card{width:100%;max-width:380px;}
+  #signup-form .sub{margin-bottom:16px;}
+  #signup-form .field{margin-bottom:9px;}
+  #signup-form .field label{margin-bottom:4px;}
+  #signup-form .field input{padding:8px 12px;}
+  #signup-form .logo-hint{margin-top:-3px;margin-bottom:7px;}
+  #signup-form .btn-primary{margin-top:2px;padding:9px 0;}
+  #signup-form .auth-switch{margin-top:12px;}
   .auth-card h2{font-size:24px;margin:0 0 6px;}
   .auth-card .sub{color:var(--ink-soft);font-size:13.5px;margin-bottom:28px;}
   .tabs{display:flex;gap:4px;background:var(--paper-dim);padding:4px;border-radius:10px;margin-bottom:24px;}
@@ -105,6 +112,8 @@
     background:#fff;font-family:var(--font-body);font-size:14px;color:var(--ink);
   }
   .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--indigo);outline-offset:1px;border-color:var(--indigo);}
+  .auth-switch{text-align:center;color:var(--ink-soft);font-size:12px;margin-top:18px;}
+  .auth-switch button{border:0;background:none;color:var(--indigo);font-size:12px;text-decoration:underline;padding:0;}
   .date-picker{border:1px solid var(--line);border-radius:8px;background:var(--paper);padding:10px;margin-bottom:14px;}
   .calendar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
   .calendar-head strong{font-family:var(--font-display);font-size:13px;}
@@ -136,6 +145,8 @@
   }
   .sidebar .wordmark{font-size:20px;margin-bottom:2px;padding:0 8px;}
   .sidebar .tagline{font-size:10.5px;color:#8C8F9C;padding:0 8px;margin-bottom:30px;}
+  .company-logo{display:block;width:42px;height:42px;object-fit:contain;border-radius:8px;background:#fff;padding:5px;margin:0 8px 12px;}
+  .logo-hint{font-size:11px;color:var(--ink-soft);line-height:1.45;margin-top:-6px;margin-bottom:14px;}
   .nav-item{
     display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:8px;
     font-size:13.5px;font-weight:500;color:#C7C9D2;margin-bottom:2px;border:none;background:transparent;
@@ -278,39 +289,30 @@
   </div>
   <div class="auth-right">
     <div class="auth-card">
-      <div class="tabs">
-        <button class="tab active" id="tab-signin" onclick="setAuthTab('signin')">Sign in</button>
-        <button class="tab" id="tab-signup" onclick="setAuthTab('signup')">Sign up</button>
-      </div>
-
       <div id="signin-form">
         <h2>Welcome back</h2>
         <div class="sub">Sign in to reach your dashboard.</div>
-        <div class="field"><label>Email</label><input id="si-email" type="email" placeholder="you@company.com"></div>
+        <div class="field"><label>Login ID / Email</label><input id="si-email" placeholder="Employee ID or you@company.com" autocomplete="username"></div>
         <div class="field"><label>Password</label><input id="si-password" type="password" placeholder="••••••••"></div>
         <button class="btn-primary" onclick="doSignIn()">Sign in</button>
         <div class="err" id="si-err"></div>
         <div class="demo-note"><b>Demo accounts</b> — Admin: admin@dayflow.io / admin123 &nbsp;·&nbsp; Employee: asha@dayflow.io / employee123</div>
+        <div class="auth-switch">Don't have an account? <button type="button" onclick="setAuthTab('signup')">Sign up</button></div>
       </div>
 
       <div id="signup-form" style="display:none;">
-        <h2>Create account</h2>
-        <div class="sub">Register as an employee or HR admin.</div>
-        <div class="row2">
-          <div class="field"><label>Full name</label><input id="su-name" placeholder="Jordan Lee"></div>
-          <div class="field"><label>Employee ID</label><input id="su-empid" placeholder="EMP-104"></div>
-        </div>
-        <div class="field"><label>Email</label><input id="su-email" type="email" placeholder="you@company.com"></div>
-        <div class="field"><label>Password</label><input id="su-password" type="password" placeholder="Min. 6 characters"></div>
-        <div class="field">
-          <label>Role</label>
-          <div class="role-pick">
-            <button type="button" class="sel" id="role-employee" onclick="pickRole('employee')">Employee</button>
-            <button type="button" id="role-admin" onclick="pickRole('admin')">HR / Admin</button>
-          </div>
-        </div>
-        <button class="btn-primary" onclick="doSignUp()">Create account</button>
+        <h2>Register your company</h2>
+        <div class="sub">Create the first HR admin account for your company.</div>
+        <div class="field"><label>Company name</label><input id="su-company" placeholder="Odoo India"></div>
+        <div class="field"><label>Company logo</label><input id="su-logo" type="file" accept="image/png,image/jpeg,image/webp"><div class="logo-hint">Optional PNG, JPG, or WebP under 500 KB.</div></div>
+        <div class="field"><label>Name</label><input id="su-name" placeholder="Jordan Doe"></div>
+        <div class="field"><label>Email</label><input id="su-email" type="email" placeholder="you@company.com" autocomplete="email"></div>
+        <div class="field"><label>Phone</label><input id="su-phone" placeholder="Optional"></div>
+        <div class="field"><label>Password</label><input id="su-password" type="password" placeholder="At least 6 characters" autocomplete="new-password"></div>
+        <div class="field"><label>Confirm password</label><input id="su-confirm-password" type="password" placeholder="Repeat password" autocomplete="new-password"></div>
+        <button class="btn-primary" onclick="doSignUp()">Sign up</button>
         <div class="err" id="su-err"></div>
+        <div class="auth-switch">Already have an account? <button type="button" onclick="setAuthTab('signin')">Sign in</button></div>
       </div>
     </div>
   </div>
@@ -320,6 +322,7 @@
 <div id="app-screen">
   <div class="shell">
     <div class="sidebar">
+      <img class="company-logo" id="sb-company-logo" alt="Company logo" style="display:none;">
       <div class="wordmark">Dayflow<span style="color:var(--amber);">.</span></div>
       <div class="tagline">Every workday, aligned.</div>
       <div id="nav-items"></div>
@@ -347,7 +350,7 @@
 const WORK_START = 9, WORK_END = 18;
 let db = null;
 let session = { user: null };
-let ui = { view: 'dashboard', authTab: 'signin', pickedRole: 'employee', adminEmpFilter: null, editingProfile: false };
+let ui = { view: 'dashboard', authTab: 'signin', pickedRole: 'employee', adminEmpFilter: null, editingProfile: false, creatingEmployee: false, createdCredentials: null };
 
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function fmtDate(d){ return new Date(d+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
@@ -381,15 +384,8 @@ function showToast(msg){
 /* ---------- AUTH ---------- */
 function setAuthTab(tab){
   ui.authTab = tab;
-  document.getElementById('tab-signin').classList.toggle('active', tab==='signin');
-  document.getElementById('tab-signup').classList.toggle('active', tab==='signup');
   document.getElementById('signin-form').style.display = tab==='signin' ? 'block':'none';
   document.getElementById('signup-form').style.display = tab==='signup' ? 'block':'none';
-}
-function pickRole(r){
-  ui.pickedRole = r;
-  document.getElementById('role-employee').classList.toggle('sel', r==='employee');
-  document.getElementById('role-admin').classList.toggle('sel', r==='admin');
 }
 async function doSignIn(){
   const email = document.getElementById('si-email').value.trim().toLowerCase();
@@ -404,15 +400,26 @@ async function doSignIn(){
   }catch(e){ err.textContent = e.message; }
 }
 async function doSignUp(){
+  const companyName = document.getElementById('su-company').value.trim();
+  const logoFile = document.getElementById('su-logo').files[0];
   const name = document.getElementById('su-name').value.trim();
-  const empId = document.getElementById('su-empid').value.trim();
   const email = document.getElementById('su-email').value.trim().toLowerCase();
+  const phone = document.getElementById('su-phone').value.trim();
   const pass = document.getElementById('su-password').value;
+  const confirmPass = document.getElementById('su-confirm-password').value;
   const err = document.getElementById('su-err');
-  if(!name || !empId || !email || !pass){ err.textContent='Please fill in every field.'; return; }
+  if(!companyName || !name || !email || !pass || !confirmPass){ err.textContent='Please fill in every field.'; return; }
   if(pass.length < 6){ err.textContent='Password must be at least 6 characters.'; return; }
+  if(pass !== confirmPass){ err.textContent='Passwords do not match.'; return; }
   try{
-    const result = await api('/api/auth/sign-up',{method:'POST',body:JSON.stringify({name,employeeId:empId,email,password:pass,role:ui.pickedRole})});
+    if(logoFile && logoFile.size > 500 * 1024) throw new Error('Logo must be smaller than 500 KB.');
+    const companyLogo = logoFile ? await new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('The logo could not be read.'));
+      reader.readAsDataURL(logoFile);
+    }) : '';
+    const result = await api('/api/auth/sign-up',{method:'POST',body:JSON.stringify({companyName,companyLogo,name,email,phone,password:pass})});
     err.textContent='';
     session.user = result.user;
     await loadDB();
@@ -450,6 +457,9 @@ const NAV_ADMIN = [
 ];
 function renderSidebar(){
   const u = session.user;
+  const logo = document.getElementById('sb-company-logo');
+  logo.src = u.companyLogo || '';
+  logo.style.display = u.companyLogo ? 'block' : 'none';
   document.getElementById('sb-avatar').textContent = initials(u.name);
   document.getElementById('sb-name').textContent = u.name;
   document.getElementById('sb-role').textContent = u.role === 'admin' ? 'HR Admin' : 'Employee';
@@ -505,6 +515,7 @@ function last7Days(){
 function renderMain(){
   const u = session.user;
   const el = document.getElementById('main-content');
+  if(u.mustChangePassword){ el.innerHTML = passwordChangeView(); return; }
   if(u.role==='employee'){
     if(ui.view==='dashboard') el.innerHTML = empDashboard();
     else if(ui.view==='attendance') el.innerHTML = empAttendance();
@@ -516,6 +527,23 @@ function renderMain(){
     else if(ui.view==='attendance') el.innerHTML = adminAttendance();
     else if(ui.view==='leave') el.innerHTML = adminLeave();
   }
+}
+function passwordChangeView(){
+  return `<div class="page-head"><div><div class="eyebrow">Account security</div><h1>Set your password</h1></div></div>
+    <div class="form-card"><div class="sub">Your HR admin created this account with a temporary password. Choose a new password to continue.</div>
+      <div class="field"><label>New password</label><input id="new-password" type="password" placeholder="At least 6 characters"></div>
+      <button class="btn-primary" onclick="changePassword()">Update password</button><div class="err" id="password-err"></div>
+    </div>`;
+}
+async function changePassword(){
+  const password = document.getElementById('new-password').value;
+  const err = document.getElementById('password-err');
+  try{
+    const result = await api('/api/auth/password',{method:'PATCH',body:JSON.stringify({password})});
+    session.user = result.user;
+    await refreshApp();
+    showToast('Password updated');
+  }catch(e){ err.textContent = e.message; }
 }
 
 /* ---------- EMPLOYEE: DASHBOARD ---------- */
@@ -808,6 +836,20 @@ async function saveEmployeeEdit(id){
     showToast('Employee details updated');
   }catch(e){ showToast(e.message); }
 }
+async function createEmployee(){
+  const err = document.getElementById('create-employee-err');
+  try{
+    const result = await api('/api/employees',{method:'POST',body:JSON.stringify({
+      name:document.getElementById('new-employee-name').value.trim(),
+      email:document.getElementById('new-employee-email').value.trim(),
+      phone:document.getElementById('new-employee-phone').value.trim()
+    })});
+    ui.creatingEmployee = false;
+    ui.createdCredentials = {employeeId:result.user.employeeId, email:result.user.email, password:result.temporaryPassword};
+    await refreshApp();
+    showToast('Employee account created');
+  }catch(e){ err.textContent = e.message; }
+}
 function adminEmployees(){
   const employees = db.users.filter(u=>u.role==='employee');
   const editing = ui.adminEmpFilter ? db.users.find(u=>u.id===ui.adminEmpFilter) : null;
@@ -823,6 +865,17 @@ function adminEmployees(){
       <button class="btn-primary" style="width:auto;padding:9px 18px;" onclick="saveEmployeeEdit('${editing.id}')">Save changes</button>
     </div>`;
   }
+  if(ui.creatingEmployee){
+    return `<div class="page-head"><div><div class="eyebrow">Employees</div><h1>Create employee</h1></div>
+      <button class="btn" onclick="ui.creatingEmployee=false;renderMain();">Back to list</button></div>
+      <div class="form-card"><div class="sub">The employee will automatically inherit your company name and logo. The system generates the employee ID and temporary password.</div>
+        <div class="field"><label>Employee name</label><input id="new-employee-name" placeholder="Jordan Doe"></div>
+        <div class="field"><label>Email</label><input id="new-employee-email" type="email" placeholder="jordan@company.com"></div>
+        <div class="field"><label>Phone</label><input id="new-employee-phone" placeholder="Optional"></div>
+        <button class="btn-primary" onclick="createEmployee()">Create employee</button><div class="err" id="create-employee-err"></div>
+      </div>`;
+  }
+  const credentials = ui.createdCredentials ? `<div class="demo-note"><b>New account created</b><br>Employee ID: <span class="mono">${ui.createdCredentials.employeeId}</span><br>Email: ${ui.createdCredentials.email}<br>Temporary password: <span class="mono">${ui.createdCredentials.password}</span><br><button class="btn btn-sm" style="margin-top:8px;" onclick="ui.createdCredentials=null;renderMain();">Dismiss</button></div>` : '';
   const rows = employees.map(e=>`
     <tr>
       <td><b>${e.name}</b></td>
@@ -832,7 +885,8 @@ function adminEmployees(){
       <td><button class="btn btn-sm" onclick="ui.adminEmpFilter='${e.id}';renderMain();">Edit</button></td>
     </tr>`).join('');
   return `
-    <div class="page-head"><div><div class="eyebrow">Employees</div><h1>All employees</h1></div></div>
+    <div class="page-head"><div><div class="eyebrow">Employees</div><h1>All employees</h1></div><button class="btn btn-dark" onclick="ui.creatingEmployee=true;renderMain();">Create employee</button></div>
+    ${credentials}
     ${employees.length ? `<table><thead><tr><th>Name</th><th>ID</th><th>Department</th><th>Email</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty">No employees registered yet.</div>`}
   `;
 }

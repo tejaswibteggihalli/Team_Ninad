@@ -2,10 +2,13 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
+  company_name TEXT NOT NULL DEFAULT 'Dayflow',
+  company_logo TEXT NOT NULL DEFAULT '',
   employee_id TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE COLLATE NOCASE,
   password_hash TEXT NOT NULL,
+  must_change_password INTEGER NOT NULL DEFAULT 0 CHECK (must_change_password IN (0, 1)),
   role TEXT NOT NULL CHECK (role IN ('admin', 'employee')),
   phone TEXT NOT NULL DEFAULT '',
   address TEXT NOT NULL DEFAULT '',
