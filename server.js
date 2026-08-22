@@ -19,37 +19,76 @@ app.use(session({
 
 function publicUser(user) {
   if (!user) return null;
-  return { id: user.id, employeeId: user.employee_id, name: user.name, email: user.email, role: user.role, phone: user.phone, address: user.address, department: user.department, salary: user.salary, joinDate: user.join_date };
+  return { id: user.id, companyName: user.company_name, companyLogo: user.company_logo, employeeId: user.employee_id, name: user.name, email: user.email, role: user.role, phone: user.phone, address: user.address, department: user.department, salary: user.salary, joinDate: user.join_date, mustChangePassword: Boolean(user.must_change_password) };
 }
 function userById(id) { return db.prepare('SELECT * FROM users WHERE id = ?').get(id); }
 function requireAuth(req, res, next) { if (!req.session.userId) return res.status(401).json({ error: 'Authentication required.' }); next(); }
 function requireAdmin(req, res, next) { const user = userById(req.session.userId); if (!user || user.role !== 'admin') return res.status(403).json({ error: 'HR admin access required.' }); next(); }
 function validDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)); }
 function id(prefix) { return `${prefix}_${crypto.randomBytes(5).toString('hex')}`; }
+function temporaryPassword() { return crypto.randomBytes(6).toString('base64url'); }
+function employeeIdFor(companyName, name, year) {
+  const companyCode = companyName.replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase().padEnd(2, 'X');
+  const nameParts = name.trim().split(/\s+/);
+  const firstNameCode = (nameParts[0] || '').slice(0, 2).toUpperCase().padEnd(2, 'X');
+  const lastNameCode = (nameParts.length > 1 ? nameParts[nameParts.length - 1] : '').slice(0, 2).toUpperCase().padEnd(2, 'X');
+  const initials = firstNameCode + lastNameCode;
+  const prefix = `${companyCode}${initials}${year}`;
+  const count = db.prepare('SELECT COUNT(*) AS count FROM users WHERE employee_id LIKE ?').get(`${prefix}%`).count + 1;
+  return `${prefix}${String(count).padStart(4, '0')}`;
+}
 function mapAttendance(row) { return row && { id: row.id, userId: row.user_id, date: row.date, checkIn: row.check_in, checkOut: row.check_out, status: row.status }; }
 function mapLeave(row) { return { id: row.id, userId: row.user_id, type: row.type, startDate: row.start_date, endDate: row.end_date, remarks: row.remarks, status: row.status, comment: row.comment, createdAt: row.created_at }; }
 
 app.post('/api/auth/sign-in', (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
-  const user = db.prepare('SELECT * FROM users WHERE lower(email) = lower(?)').get(email);
+  const user = db.prepare('SELECT * FROM users WHERE lower(email) = lower(?) OR upper(employee_id) = upper(?)').get(email, email);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) return res.status(401).json({ error: 'Incorrect email or password.' });
   req.session.userId = user.id;
   res.json({ user: publicUser(user) });
 });
 app.post('/api/auth/sign-up', (req, res) => {
+  const companyName = String(req.body.companyName || '').trim();
+  const companyLogo = String(req.body.companyLogo || '');
   const name = String(req.body.name || '').trim();
-  const employeeId = String(req.body.employeeId || '').trim();
   const email = String(req.body.email || '').trim().toLowerCase();
+  const phone = String(req.body.phone || '').trim();
   const password = String(req.body.password || '');
-  const role = req.body.role === 'admin' ? 'admin' : 'employee';
-  if (!name || !employeeId || !email || password.length < 6) return res.status(400).json({ error: 'Please provide all fields and a password of at least 6 characters.' });
-  if (db.prepare('SELECT id FROM users WHERE lower(email) = lower(?) OR employee_id = ?').get(email, employeeId)) return res.status(409).json({ error: 'That email or employee ID already exists.' });
-  const user = { id: id('u'), joinDate: new Date().toISOString().slice(0, 10) };
-  db.prepare(`INSERT INTO users (id, employee_id, name, email, password_hash, role, department, salary, join_date, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(user.id, employeeId, name, email, bcrypt.hashSync(password, 12), role, role === 'admin' ? 'Human Resources' : 'Unassigned', '—', user.joinDate, Date.now());
-  req.session.userId = user.id;
-  res.status(201).json({ user: publicUser(userById(user.id)) });
+  if (!companyName || !name || !email || password.length < 6) return res.status(400).json({ error: 'Company, name, email, and a password of at least 6 characters are required.' });
+  if (companyLogo && !/^data:image\/(png|jpeg|jpg|webp);base64,[a-z0-9+/=]+$/i.test(companyLogo)) return res.status(400).json({ error: 'Please upload a valid PNG, JPG, or WebP logo.' });
+  if (companyLogo.length > 700000) return res.status(400).json({ error: 'Logo must be smaller than 500 KB.' });
+  if (db.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').get(email)) return res.status(409).json({ error: 'That email already exists.' });
+  const joinDate = new Date().toISOString().slice(0, 10);
+  const userId = id('u');
+  const employeeId = employeeIdFor(companyName, name, new Date().getFullYear());
+  db.prepare(`INSERT INTO users (id, company_name, company_logo, employee_id, name, email, password_hash, must_change_password, role, phone, department, salary, join_date, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'admin', ?, 'Human Resources', '—', ?, ?)`).run(userId, companyName, companyLogo, employeeId, name, email, bcrypt.hashSync(password, 12), phone, joinDate, Date.now());
+  req.session.userId = userId;
+  res.status(201).json({ user: publicUser(userById(userId)) });
+});
+app.post('/api/employees', requireAdmin, (req, res) => {
+  const admin = userById(req.session.userId);
+  const companyName = admin.company_name;
+  const companyLogo = admin.company_logo || '';
+  const name = String(req.body.name || '').trim();
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const phone = String(req.body.phone || '').trim();
+  if (!companyName || !name || !email) return res.status(400).json({ error: 'Employee name and email are required.' });
+  if (db.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').get(email)) return res.status(409).json({ error: 'That email already exists.' });
+  const joinDate = new Date().toISOString().slice(0, 10);
+  const employeeId = employeeIdFor(companyName, name, new Date().getFullYear());
+  const password = temporaryPassword();
+  const userId = id('u');
+  db.prepare(`INSERT INTO users (id, company_name, company_logo, employee_id, name, email, password_hash, must_change_password, role, phone, department, salary, join_date, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'employee', ?, 'Unassigned', '—', ?, ?)`).run(userId, companyName, companyLogo, employeeId, name, email, bcrypt.hashSync(password, 12), phone, joinDate, Date.now());
+  res.status(201).json({ user: publicUser(userById(userId)), temporaryPassword: password });
+});
+app.patch('/api/auth/password', requireAuth, (req, res) => {
+  const password = String(req.body.password || '');
+  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(bcrypt.hashSync(password, 12), req.session.userId);
+  res.json({ user: publicUser(userById(req.session.userId)) });
 });
 app.post('/api/auth/logout', (req, res) => req.session.destroy(() => res.json({ ok: true })));
 app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user: publicUser(userById(req.session.userId)) }));
